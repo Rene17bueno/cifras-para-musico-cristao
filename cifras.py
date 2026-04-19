@@ -248,12 +248,19 @@ elif aba == "Exportar":
                     pdf.multi_cell(0, 5, texto.encode('latin-1', 'replace').decode('latin-1'))
                     pdf.ln(5)
                 
-                # === CORREÇÃO DO ERRO AQUI ===
+                # === CORREÇÃO FINAL PARA O PDF ===
                 output = pdf.output(dest='S')
-                if isinstance(output, (bytes, bytearray)):
-                    pdf_output = output
-                else:
+                
+                # Garante que seja sempre bytes
+                if isinstance(output, str):
                     pdf_output = output.encode('latin-1', 'replace')
+                elif isinstance(output, (bytes, bytearray)):
+                    pdf_output = bytes(output)
+                else:
+                    # Fallback: salva em BytesIO
+                    buf = io.BytesIO()
+                    pdf.output(buf)
+                    pdf_output = buf.getvalue()
                 
                 st.download_button(
                     "📥 Baixar PDF",
