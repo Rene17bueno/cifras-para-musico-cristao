@@ -74,7 +74,7 @@ def limpar_campos():
     st.session_state.temp_titulo = ""
     st.session_state.temp_conteudo = ""
     st.session_state.original_conteudo = ""
-    st.session_state.select_tom_principal = "0 (Tom Original - B)"
+    # Não alteramos o select_tom_principal aqui para evitar erro
 
 def buscar_cifra(url):
     try:
@@ -139,22 +139,26 @@ if aba == "Adicionar Música":
                 st.session_state.temp_conteudo = st.session_state.original_conteudo
                 st.rerun()
     
-    titulo_f = st.text_input("Título:", value=st.session_state.temp_titulo, key=f"tit_{c_id}")
+    titulo_f = st.text_input("Título:", 
+                             value=st.session_state.temp_titulo, 
+                             key=f"tit_{c_id}")
     
+    # Seletor de Tom na Sidebar
     tom_selecionado = st.sidebar.selectbox(
-        "🎸 Transpor Tonalidade", opcoes_tons, key="select_tom_principal"
+        "🎸 Transpor Tonalidade",
+        opcoes_tons,
+        key="select_tom_principal"
     )
     match_tom = re.search(r"([+-]?\d+)", tom_selecionado)
     tom_ajuste = int(match_tom.group(1)) if match_tom else 0
     
+    # Conteúdo com transposição aplicada
     conteudo_visivel = processar_transposicao(st.session_state.temp_conteudo, tom_ajuste)
     
-    # Correção principal aqui: key fixa para evitar erro de widget
     conteudo_f = st.text_area(
         "Cifra (Editável):",
         value=conteudo_visivel,
-        height=500,
-        key=f"conteudo_area_{c_id}"
+        height=500
     )
     
     if st.button("✅ Salvar no meu Book"):
@@ -174,8 +178,11 @@ if aba == "Adicionar Música":
 elif aba == "Visualizar Book":
     st.header("📖 Meu Repertório")
     
+    # Seletor de Tom na Sidebar
     tom_selecionado = st.sidebar.selectbox(
-        "🎸 Transpor Tonalidade", opcoes_tons, key="select_tom_principal"
+        "🎸 Transpor Tonalidade",
+        opcoes_tons,
+        key="select_tom_principal"
     )
     match_tom = re.search(r"([+-]?\d+)", tom_selecionado)
     tom_ajuste = int(match_tom.group(1)) if match_tom else 0
@@ -198,8 +205,11 @@ elif aba == "Visualizar Book":
 elif aba == "Exportar":
     st.header("📂 Exportar Arquivos")
     
+    # Seletor de Tom na Sidebar
     tom_selecionado = st.sidebar.selectbox(
-        "🎸 Transpor Tonalidade", opcoes_tons, key="select_tom_principal"
+        "🎸 Transpor Tonalidade",
+        opcoes_tons,
+        key="select_tom_principal"
     )
     match_tom = re.search(r"([+-]?\d+)", tom_selecionado)
     tom_ajuste = int(match_tom.group(1)) if match_tom else 0
@@ -218,7 +228,12 @@ elif aba == "Exportar":
                 txt += f"{m['titulo'].upper()}\n\n"
                 txt += f"{processar_transposicao(m['conteudo'], tom_ajuste)}\n\n"
                 txt += f"{'-'*40}\n\n"
-            st.download_button("📥 Baixar TXT", txt, f"{nome_arq}.txt", mime="text/plain")
+            st.download_button(
+                "📥 Baixar TXT",
+                txt,
+                f"{nome_arq}.txt",
+                mime="text/plain"
+            )
         
         with c2:
             doc = Document()
@@ -227,13 +242,19 @@ elif aba == "Exportar":
             doc.add_heading(nome_proj, 0)
             for m in st.session_state.book:
                 doc.add_heading(m['titulo'], 1)
-                run = doc.add_paragraph().add_run(processar_transposicao(m['conteudo'], tom_ajuste))
+                run = doc.add_paragraph().add_run(
+                    processar_transposicao(m['conteudo'], tom_ajuste)
+                )
                 run.font.name = 'Courier New'
                 run.font.size = Pt(11)
             buf = io.BytesIO()
             doc.save(buf)
-            st.download_button("📥 Baixar DOCX", buf.getvalue(), f"{nome_arq}.docx",
-                               mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+            st.download_button(
+                "📥 Baixar DOCX",
+                buf.getvalue(),
+                f"{nome_arq}.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
         
         with c3:
             if st.button("Gerar PDF"):
@@ -248,9 +269,13 @@ elif aba == "Exportar":
                     pdf.cell(0, 10, m['titulo'].encode('latin-1', 'replace').decode('latin-1'), ln=True)
                     pdf.set_font("Courier", size=11)
                     texto = processar_transposicao(m['conteudo'], tom_ajuste)
-                    # Correção principal do PDF: replace para evitar UnicodeEncodeError
                     pdf.multi_cell(0, 5, texto.encode('latin-1', 'replace').decode('latin-1'))
                     pdf.ln(5)
                 
                 pdf_output = pdf.output(dest='S').encode('latin-1', 'replace')
-                st.download_button("📥 Baixar PDF", pdf_output, f"{nome_arq}.pdf", mime="application/pdf")
+                st.download_button(
+                    "📥 Baixar PDF",
+                    pdf_output,
+                    f"{nome_arq}.pdf",
+                    mime="application/pdf"
+                )
