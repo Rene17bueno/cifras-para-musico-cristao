@@ -81,10 +81,15 @@ def buscar_cifra(url):
         res = requests.get(url, headers=headers, timeout=10)
         res.encoding = res.apparent_encoding
         soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # Pega o título corretamente do Cifra Club
         titulo_tag = soup.find('h1', class_='t1') or soup.find('h1', class_='t3') or soup.find('h1')
         titulo = titulo_tag.get_text().strip() if titulo_tag else "Nova Música"
+        
         corpo = soup.find('pre')
-        return titulo, (corpo.get_text() if corpo else "")
+        conteudo = corpo.get_text() if corpo else ""
+        
+        return titulo, conteudo
     except:
         return "", ""
 
@@ -120,7 +125,7 @@ if aba == "Adicionar Música":
         if st.button("Capturar Dados"):
             t, c = buscar_cifra(url)
             if t:
-                st.session_state.temp_titulo = t
+                st.session_state.temp_titulo = t          # ← Agora traz o título automaticamente
                 st.session_state.temp_conteudo = c
                 st.session_state.original_conteudo = c
                 st.session_state.select_tom_principal = "0 (Tom Original - B)"
@@ -138,7 +143,9 @@ if aba == "Adicionar Música":
                 st.session_state.temp_conteudo = st.session_state.original_conteudo
                 st.rerun()
     
-    titulo_f = st.text_input("Título:", value=st.session_state.temp_titulo, key=f"tit_{c_id}")
+    titulo_f = st.text_input("Título:", 
+                             value=st.session_state.temp_titulo, 
+                             key=f"tit_{c_id}")
     
     tom_selecionado = st.sidebar.selectbox(
         "🎸 Transpor Tonalidade", opcoes_tons, key="select_tom_principal"
@@ -182,10 +189,7 @@ elif aba == "Visualizar Book":
     else:
         for i, m in enumerate(st.session_state.book):
             with st.expander(f"🎸 {m['titulo']}", expanded=False):
-                st.code(
-                    processar_transposicao(m['conteudo'], tom_ajuste),
-                    language=None
-                )
+                st.code(processar_transposicao(m['conteudo'], tom_ajuste), language=None)
                 if st.button(f"🗑️ Excluir música", key=f"del_{i}"):
                     st.session_state.book.pop(i)
                     st.success(f"'{m['titulo']}' excluída.")
@@ -206,6 +210,7 @@ elif aba == "Exportar":
     else:
         nome_proj = st.text_input("Título do Projeto:", value="Meu Repertorio")
         nome_arq = nome_proj.replace(" ", "_").lower()
+        
         st.divider()
         c1, c2, c3 = st.columns(3)
         
@@ -229,7 +234,10 @@ elif aba == "Exportar":
                 run.font.size = Pt(11)
             buf = io.BytesIO()
             doc.save(buf)
-            st.download_button("📥 Baixar DOCX", buf.getvalue(), f"{nome_arq}.docx",
+            # Correção: agora usa o nome do projeto corretamente
+            st.download_button("📥 Baixar DOCX", 
+                               buf.getvalue(), 
+                               f"{nome_arq}.docx",
                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         
         with c3:
@@ -248,23 +256,10 @@ elif aba == "Exportar":
                     pdf.multi_cell(0, 5, texto.encode('latin-1', 'replace').decode('latin-1'))
                     pdf.ln(5)
                 
-                # === CORREÇÃO FINAL PARA O PDF ===
                 output = pdf.output(dest='S')
-                
-                # Garante que seja sempre bytes
                 if isinstance(output, str):
                     pdf_output = output.encode('latin-1', 'replace')
-                elif isinstance(output, (bytes, bytearray)):
-                    pdf_output = bytes(output)
                 else:
-                    # Fallback: salva em BytesIO
-                    buf = io.BytesIO()
-                    pdf.output(buf)
-                    pdf_output = buf.getvalue()
+                    pdf_output = bytes(output) if isinstance(output, (bytes, bytearray)) else output
                 
-                st.download_button(
-                    "📥 Baixar PDF",
-                    pdf_output,
-                    f"{nome_arq}.pdf",
-                    mime="application/pdf"
-                )
+                st.download_button("📥 Baixar PDF", pdf_output, f"{nome_arq}.pdf", mime="application/pdf")
