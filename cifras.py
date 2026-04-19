@@ -74,7 +74,6 @@ def limpar_campos():
     st.session_state.temp_titulo = ""
     st.session_state.temp_conteudo = ""
     st.session_state.original_conteudo = ""
-    # Não alteramos o select_tom_principal aqui para evitar erro
 
 def buscar_cifra(url):
     try:
@@ -139,20 +138,14 @@ if aba == "Adicionar Música":
                 st.session_state.temp_conteudo = st.session_state.original_conteudo
                 st.rerun()
     
-    titulo_f = st.text_input("Título:", 
-                             value=st.session_state.temp_titulo, 
-                             key=f"tit_{c_id}")
+    titulo_f = st.text_input("Título:", value=st.session_state.temp_titulo, key=f"tit_{c_id}")
     
-    # Seletor de Tom na Sidebar
     tom_selecionado = st.sidebar.selectbox(
-        "🎸 Transpor Tonalidade",
-        opcoes_tons,
-        key="select_tom_principal"
+        "🎸 Transpor Tonalidade", opcoes_tons, key="select_tom_principal"
     )
     match_tom = re.search(r"([+-]?\d+)", tom_selecionado)
     tom_ajuste = int(match_tom.group(1)) if match_tom else 0
     
-    # Conteúdo com transposição aplicada
     conteudo_visivel = processar_transposicao(st.session_state.temp_conteudo, tom_ajuste)
     
     conteudo_f = st.text_area(
@@ -178,11 +171,8 @@ if aba == "Adicionar Música":
 elif aba == "Visualizar Book":
     st.header("📖 Meu Repertório")
     
-    # Seletor de Tom na Sidebar
     tom_selecionado = st.sidebar.selectbox(
-        "🎸 Transpor Tonalidade",
-        opcoes_tons,
-        key="select_tom_principal"
+        "🎸 Transpor Tonalidade", opcoes_tons, key="select_tom_principal"
     )
     match_tom = re.search(r"([+-]?\d+)", tom_selecionado)
     tom_ajuste = int(match_tom.group(1)) if match_tom else 0
@@ -205,11 +195,8 @@ elif aba == "Visualizar Book":
 elif aba == "Exportar":
     st.header("📂 Exportar Arquivos")
     
-    # Seletor de Tom na Sidebar
     tom_selecionado = st.sidebar.selectbox(
-        "🎸 Transpor Tonalidade",
-        opcoes_tons,
-        key="select_tom_principal"
+        "🎸 Transpor Tonalidade", opcoes_tons, key="select_tom_principal"
     )
     match_tom = re.search(r"([+-]?\d+)", tom_selecionado)
     tom_ajuste = int(match_tom.group(1)) if match_tom else 0
@@ -228,12 +215,7 @@ elif aba == "Exportar":
                 txt += f"{m['titulo'].upper()}\n\n"
                 txt += f"{processar_transposicao(m['conteudo'], tom_ajuste)}\n\n"
                 txt += f"{'-'*40}\n\n"
-            st.download_button(
-                "📥 Baixar TXT",
-                txt,
-                f"{nome_arq}.txt",
-                mime="text/plain"
-            )
+            st.download_button("📥 Baixar TXT", txt, f"{nome_arq}.txt", mime="text/plain")
         
         with c2:
             doc = Document()
@@ -242,19 +224,13 @@ elif aba == "Exportar":
             doc.add_heading(nome_proj, 0)
             for m in st.session_state.book:
                 doc.add_heading(m['titulo'], 1)
-                run = doc.add_paragraph().add_run(
-                    processar_transposicao(m['conteudo'], tom_ajuste)
-                )
+                run = doc.add_paragraph().add_run(processar_transposicao(m['conteudo'], tom_ajuste))
                 run.font.name = 'Courier New'
                 run.font.size = Pt(11)
             buf = io.BytesIO()
             doc.save(buf)
-            st.download_button(
-                "📥 Baixar DOCX",
-                buf.getvalue(),
-                f"{nome_arq}.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            )
+            st.download_button("📥 Baixar DOCX", buf.getvalue(), f"{nome_arq}.docx",
+                               mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         
         with c3:
             if st.button("Gerar PDF"):
@@ -272,7 +248,13 @@ elif aba == "Exportar":
                     pdf.multi_cell(0, 5, texto.encode('latin-1', 'replace').decode('latin-1'))
                     pdf.ln(5)
                 
-                pdf_output = pdf.output(dest='S').encode('latin-1', 'replace')
+                # === CORREÇÃO DO ERRO AQUI ===
+                output = pdf.output(dest='S')
+                if isinstance(output, (bytes, bytearray)):
+                    pdf_output = output
+                else:
+                    pdf_output = output.encode('latin-1', 'replace')
+                
                 st.download_button(
                     "📥 Baixar PDF",
                     pdf_output,
