@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# -*- coding: utf-8 -*-
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
@@ -12,7 +11,6 @@ import time
 
 # --- CONFIGURAÇÃO ---
 st.set_page_config(page_title="Music Book Pro", page_icon="🎸", layout="wide")
-
 st.markdown("""
     <style>
     textarea { font-family: 'Courier New', Courier, monospace !important; }
@@ -113,11 +111,11 @@ opcoes_tons = ["-3 (G#)", "-2 (A)", "-1 (A#)", "0 (Tom Original - B)",
 # ====================== ADICIONAR MÚSICA ======================
 if aba == "Adicionar Música":
     st.header("🔍 Importar e Personalizar")
-
+    
     c_id = st.session_state.limpador
-
+    
     url = st.text_input("Link da cifra:", key=f"url_{c_id}")
-
+    
     col_cap, col_div2, col_div1 = st.columns(3)
     with col_cap:
         if st.button("Capturar Dados"):
@@ -128,43 +126,42 @@ if aba == "Adicionar Música":
                 st.session_state.original_conteudo = c
                 st.session_state.select_tom_principal = "0 (Tom Original - B)"
                 st.rerun()
-
+    
     with col_div2:
         if st.button("✂️ Modo 2 Colunas"):
             if st.session_state.original_conteudo:
                 st.session_state.temp_conteudo = dividir_em_colunas(st.session_state.original_conteudo)
                 st.rerun()
-
+    
     with col_div1:
         if st.button("📄 Modo 1 Coluna"):
             if st.session_state.original_conteudo:
                 st.session_state.temp_conteudo = st.session_state.original_conteudo
                 st.rerun()
-
+    
     titulo_f = st.text_input("Título:", value=st.session_state.temp_titulo, key=f"tit_{c_id}")
-
-    # Seletor de Tom
+    
     tom_selecionado = st.sidebar.selectbox(
         "🎸 Transpor Tonalidade", opcoes_tons, key="select_tom_principal"
     )
     match_tom = re.search(r"([+-]?\d+)", tom_selecionado)
     tom_ajuste = int(match_tom.group(1)) if match_tom else 0
-
-    # Conteúdo com transposição
+    
     conteudo_visivel = processar_transposicao(st.session_state.temp_conteudo, tom_ajuste)
-
+    
+    # Correção principal aqui: key fixa para evitar erro de widget
     conteudo_f = st.text_area(
         "Cifra (Editável):",
         value=conteudo_visivel,
         height=500,
-        key=f"conteudo_area_{c_id}"   # chave fixa por ciclo
+        key=f"conteudo_area_{c_id}"
     )
-
+    
     if st.button("✅ Salvar no meu Book"):
         if titulo_f.strip() and conteudo_f.strip():
             st.session_state.book.append({
                 "titulo": titulo_f.strip(),
-                "conteudo": conteudo_f   # salva o texto que o usuário está vendo (já transposto)
+                "conteudo": conteudo_f
             })
             st.success(f"'{titulo_f}' salva com sucesso!")
             time.sleep(0.8)
@@ -176,13 +173,13 @@ if aba == "Adicionar Música":
 # ====================== VISUALIZAR BOOK ======================
 elif aba == "Visualizar Book":
     st.header("📖 Meu Repertório")
-
+    
     tom_selecionado = st.sidebar.selectbox(
         "🎸 Transpor Tonalidade", opcoes_tons, key="select_tom_principal"
     )
     match_tom = re.search(r"([+-]?\d+)", tom_selecionado)
     tom_ajuste = int(match_tom.group(1)) if match_tom else 0
-
+    
     if not st.session_state.book:
         st.info("Seu book ainda está vazio. Adicione músicas na aba 'Adicionar Música'.")
     else:
@@ -200,35 +197,29 @@ elif aba == "Visualizar Book":
 # ====================== EXPORTAR ======================
 elif aba == "Exportar":
     st.header("📂 Exportar Arquivos")
-
+    
     tom_selecionado = st.sidebar.selectbox(
         "🎸 Transpor Tonalidade", opcoes_tons, key="select_tom_principal"
     )
     match_tom = re.search(r"([+-]?\d+)", tom_selecionado)
     tom_ajuste = int(match_tom.group(1)) if match_tom else 0
-
+    
     if not st.session_state.book:
         st.warning("Adicione pelo menos uma música antes de exportar.")
     else:
         nome_proj = st.text_input("Título do Projeto:", value="Meu Repertorio")
         nome_arq = nome_proj.replace(" ", "_").lower()
-
         st.divider()
         c1, c2, c3 = st.columns(3)
-
+        
         with c1:
             txt = f"{nome_proj.upper()}\n\n"
             for m in st.session_state.book:
                 txt += f"{m['titulo'].upper()}\n\n"
                 txt += f"{processar_transposicao(m['conteudo'], tom_ajuste)}\n\n"
                 txt += f"{'-'*40}\n\n"
-            st.download_button(
-                "📥 Baixar TXT",
-                txt,
-                f"{nome_arq}.txt",
-                mime="text/plain"
-            )
-
+            st.download_button("📥 Baixar TXT", txt, f"{nome_arq}.txt", mime="text/plain")
+        
         with c2:
             doc = Document()
             for s in doc.sections:
@@ -236,40 +227,30 @@ elif aba == "Exportar":
             doc.add_heading(nome_proj, 0)
             for m in st.session_state.book:
                 doc.add_heading(m['titulo'], 1)
-                run = doc.add_paragraph().add_run(
-                    processar_transposicao(m['conteudo'], tom_ajuste)
-                )
+                run = doc.add_paragraph().add_run(processar_transposicao(m['conteudo'], tom_ajuste))
                 run.font.name = 'Courier New'
                 run.font.size = Pt(11)
             buf = io.BytesIO()
             doc.save(buf)
-            st.download_button(
-                "📥 Baixar DOCX",
-                buf.getvalue(),
-                f"{nome_arq}.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            )
-
+            st.download_button("📥 Baixar DOCX", buf.getvalue(), f"{nome_arq}.docx",
+                               mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        
         with c3:
-            # PDF direto (sem botão intermediário)
-            pdf = FPDF()
-            pdf.set_auto_page_break(auto=True, margin=10)
-            pdf.add_page()
-            pdf.set_font("Courier", 'B', 16)
-            pdf.cell(0, 10, nome_proj.encode('latin-1', 'replace').decode('latin-1'), ln=True, align='C')
-
-            for m in st.session_state.book:
-                pdf.set_font("Courier", 'B', 12)
-                pdf.cell(0, 10, m['titulo'].encode('latin-1', 'replace').decode('latin-1'), ln=True)
-                pdf.set_font("Courier", size=11)
-                texto_pdf = processar_transposicao(m['conteudo'], tom_ajuste)
-                pdf.multi_cell(0, 5, texto_pdf.encode('latin-1', 'replace').decode('latin-1'))
-                pdf.ln(5)
-
-            pdf_output = pdf.output(dest='S').encode('latin-1', 'replace')
-            st.download_button(
-                "📥 Baixar PDF",
-                pdf_output,
-                f"{nome_arq}.pdf",
-                mime="application/pdf"
-            )
+            if st.button("Gerar PDF"):
+                pdf = FPDF()
+                pdf.set_auto_page_break(auto=True, margin=10)
+                pdf.add_page()
+                pdf.set_font("Courier", 'B', 16)
+                pdf.cell(0, 10, nome_proj.encode('latin-1', 'replace').decode('latin-1'), ln=True, align='C')
+                
+                for m in st.session_state.book:
+                    pdf.set_font("Courier", 'B', 12)
+                    pdf.cell(0, 10, m['titulo'].encode('latin-1', 'replace').decode('latin-1'), ln=True)
+                    pdf.set_font("Courier", size=11)
+                    texto = processar_transposicao(m['conteudo'], tom_ajuste)
+                    # Correção principal do PDF: replace para evitar UnicodeEncodeError
+                    pdf.multi_cell(0, 5, texto.encode('latin-1', 'replace').decode('latin-1'))
+                    pdf.ln(5)
+                
+                pdf_output = pdf.output(dest='S').encode('latin-1', 'replace')
+                st.download_button("📥 Baixar PDF", pdf_output, f"{nome_arq}.pdf", mime="application/pdf")
