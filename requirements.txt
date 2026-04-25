@@ -9,7 +9,10 @@ click==8.3.2
 colorama==0.4.6
 defusedxml==0.7.1
 fonttools==4.62.1
+
+# use este (não fpdf antigo)
 fpdf2==2.8.7
+
 gitdb==4.0.12
 GitPython==3.1.46
 idna==3.11
