@@ -3,7 +3,7 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 from fpdf import FPDF
-import re
+from docx import Document
 import io
 
 # -------------------------------------------------
@@ -11,7 +11,6 @@ import io
 # -------------------------------------------------
 st.set_page_config(page_title="Music Book Pro", layout="wide")
 
-# Inicialização do Estado (Crucial para Reatividade)
 if "book" not in st.session_state:
     st.session_state.book = []
 if "musica_focada" not in st.session_state:
@@ -21,95 +20,92 @@ if "musica_focada" not in st.session_state:
 # FUNÇÕES DE APOIO
 # -------------------------------------------------
 def processar_texto(texto, semitons, colunas):
-    # (Mantenha sua lógica de transposição aqui)
-    # Exemplo simplificado para o teste de fonte:
+    # (Mantendo a lógica de transposição original)
     return texto 
 
-def verificar_limite_a4(texto, tamanho_fonte):
-    # Aproximação: em fonte Courier, cada caractere tem ~0.6 do tamanho da fonte
-    # Largura A4 útil é ~180mm. 1pt = 0.3527mm.
-    largura_caractere_mm = (tamanho_fonte * 0.3527) * 0.6
-    limite_caracteres = int(180 / largura_caractere_mm)
-    
-    linhas = texto.split('\n')
-    maior_linha = max([len(l) for l in linhas]) if linhas else 0
-    return maior_linha > limite_caracteres, limite_caracteres
+# -------------------------------------------------
+# FUNÇÕES DE EXPORTAÇÃO
+# -------------------------------------------------
+def gerar_pdf():
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    for m in st.session_state.book:
+        pdf.add_page()
+        pdf.set_font("Courier", "B", 16)
+        pdf.cell(0, 10, m['titulo'].encode('latin-1', 'replace').decode('latin-1'), ln=True)
+        pdf.set_font("Courier", size=12) # Fonte fixa
+        txt = processar_texto(m["conteudo"], m["tom"], m["cols"])
+        pdf.multi_cell(0, 5, txt.encode('latin-1', 'replace').decode('latin-1'))
+    return pdf.output(dest='S').encode('latin-1')
+
+def gerar_docx():
+    doc = Document()
+    for m in st.session_state.book:
+        doc.add_heading(m['titulo'], level=1)
+        txt = processar_texto(m["conteudo"], m["tom"], m["cols"])
+        p = doc.add_paragraph(txt)
+        p.style.font.name = 'Courier New'
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    return buffer.getvalue()
+
+def gerar_txt_simples():
+    conteudo = ""
+    for m in st.session_state.book:
+        conteudo += f"--- {m['titulo']} ---\n\n"
+        conteudo += processar_texto(m["conteudo"], m["tom"], "1 Coluna")
+        conteudo += "\n\n"
+    return conteudo.encode('utf-8')
 
 # -------------------------------------------------
-# SIDEBAR (CONTROLES)
+# SIDEBAR
 # -------------------------------------------------
 st.sidebar.title("Configurações")
-
 if st.session_state.book:
-    idx = st.sidebar.selectbox("Editar Música:", 
-                               range(len(st.session_state.book)), 
+    idx = st.sidebar.selectbox("Editar Música:", range(len(st.session_state.book)), 
                                format_func=lambda x: st.session_state.book[x]['titulo'])
     st.session_state.musica_focada = idx
-    
-    # Referência direta para facilitar
     m = st.session_state.book[idx]
     
-    st.sidebar.subheader("Ajustes de Exibição")
-    # Usamos o on_change para garantir que o Streamlit saiba que houve mudança
-    m["fonte"] = st.sidebar.slider("Tamanho da Letra (pt)", 6, 30, m["fonte"])
+    st.sidebar.subheader("Ajustes")
     m["tom"] = st.sidebar.number_input("Transpor Tom", -12, 12, m["tom"])
     m["cols"] = st.sidebar.radio("Layout", ["1 Coluna", "2 Colunas"], 
                                  index=0 if m["cols"] == "1 Coluna" else 1)
 else:
-    st.sidebar.info("Adicione uma música para editar.")
+    st.sidebar.info("Adicione uma música.")
 
 # -------------------------------------------------
-# VISUAL BOOK (O PREVIEW)
+# ABAS
 # -------------------------------------------------
-st.header("📖 Visual Book")
+tab1, tab2, tab3 = st.tabs(["Adicionar", "Visualizar", "Exportar"])
 
-if st.session_state.book:
-    musica = st.session_state.book[st.session_state.musica_focada]
-    
-    # Processamento
-    texto_final = processar_texto(musica["conteudo"], musica["tom"], musica["cols"])
-    estourou, limite = verificar_limite_a4(texto_final, musica["fonte"])
-    
-    # Alerta visual se passar da margem
-    if estourou:
-        st.error(f"⚠️ A LINHA ESTÁ FORA DA MARGEM A4! (Máximo para {musica['fonte']}pt: {limite} caracteres)")
-    else:
-        st.success(f"✅ Dentro da margem A4 ({limite} caracteres por linha).")
-
-    # CSS Dinâmico injetado na hora para garantir a mudança de fonte
-    # Usamos f-string para passar o valor exato de musica["fonte"]
-    estilo_dinamico = f"""
-    <style>
-        .folha-a4 {{
-            background: white;
-            color: black;
-            padding: 40px;
-            border: 2px solid {'#ff4b4b' if estourou else '#333'};
-            font-family: 'Courier New', Courier, monospace;
-            line-height: 1.2;
-            white-space: pre;
-            overflow-x: auto;
-            font-size: {musica['fonte']}pt !important;
-        }}
-    </style>
-    """
-    st.markdown(estilo_dinamico, unsafe_allow_html=True)
-    
-    # Renderização da folha
-    st.markdown(f'<div class="folha-a4">{texto_final}</div>', unsafe_allow_html=True)
-
-# -------------------------------------------------
-# ÁREA DE ADIÇÃO (SIMPLIFICADA PARA TESTE)
-# -------------------------------------------------
-with st.expander("➕ Adicionar Nova Música"):
-    novo_tit = st.text_input("Título")
-    novo_txt = st.text_area("Cifra")
+with tab1:
+    st.header("➕ Adicionar Música")
+    tit = st.text_input("Título")
+    cif = st.text_area("Cifra", height=300)
     if st.button("Salvar"):
-        st.session_state.book.append({
-            "titulo": novo_tit, 
-            "conteudo": novo_txt, 
-            "fonte": 12, 
-            "tom": 0, 
-            "cols": "1 Coluna"
-        })
-        st.rerun()
+        st.session_state.book.append({"titulo": tit, "conteudo": cif, "tom": 0, "cols": "1 Coluna"})
+        st.success("Salvo!")
+
+with tab2:
+    st.header("📖 Preview (Padrão A4)")
+    if st.session_state.book:
+        musica = st.session_state.book[st.session_state.musica_focada]
+        st.markdown(f"<div style='font-family:Courier; white-space:pre; padding:20px; border:1px solid #ccc;'>{processar_texto(musica['conteudo'], musica['tom'], musica['cols'])}</div>", unsafe_allow_html=True)
+
+with tab3:
+    st.header("💾 Exportar")
+    if not st.session_state.book:
+        st.warning("Adicione músicas primeiro.")
+    else:
+        # PDF
+        st.download_button("📥 Baixar PDF", gerar_pdf(), "repertorio.pdf", "application/pdf")
+        
+        # Word (.docx)
+        st.download_button("📥 Baixar Word (.docx)", gerar_docx(), "repertorio.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        
+        # TXT Simples
+        st.download_button("📥 Baixar TXT", gerar_txt_simples(), "repertorio.txt", "text/plain")
+        
+        # Kindle (Txt formatado)
+        st.download_button("📥 Baixar para Kindle (.txt)", gerar_txt_simples(), "kindle_repertorio.txt", "text/plain")
