@@ -14,27 +14,38 @@ st.set_page_config(page_title="Music Book Pro", page_icon="🎸", layout="wide")
 
 st.markdown("""
     <style>
+    /* Força fonte monoespaçada em áreas de texto e códigos */
     textarea { font-family: 'Courier New', Courier, monospace !important; }
+    pre { font-family: 'Courier New', Courier, monospace !important; }
+    
     .stButton > button { width: 100%; border-radius: 5px; }
+    
     .page-break-line {
         border-top: 2px dashed #ff4b4b;
         margin: 20px 0;
         position: relative;
+        height: 10px;
     }
     .page-break-line::after {
         content: "CORTE DA PÁGINA (FIM DA FOLHA)";
         position: absolute;
         right: 0;
-        top: -25px;
+        top: -20px;
         font-size: 10px;
         color: #ff4b4b;
         font-weight: bold;
     }
     .page-container {
-        background-color: #1e1e1e;
-        padding: 20px;
+        background-color: #0e1117;
+        padding: 25px;
         border-radius: 10px;
         border: 1px solid #333;
+        color: white;
+    }
+    .linha-cifra {
+        white-space: pre; /* Preserva espaços cruciais para o alinhamento */
+        display: block;
+        min-height: 1.2em;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -74,7 +85,7 @@ def processar_transposicao(texto, semitons):
         for m in re.finditer(r'\S+', linha):
             espacos = " " * (m.start() - pos)
             palavra = m.group()
-            palavra_transp = "[" + transpor_acorde(palavra[1:-1], semitons) + "]" if palavra.startswith('[') else transpor_acorde(palavra, semitons)
+            palavra_transp = "[" + transpor_acorde(palavra[1:-1], semitons) + "]" if (palavra.startswith('[') and palavra.endswith(']')) else transpor_acorde(palavra, semitons)
             nova_linha += espacos + palavra_transp
             pos = m.start() + len(m.group())
         novo_texto.append(nova_linha)
@@ -87,7 +98,8 @@ def buscar_cifra(url):
         res.encoding = res.apparent_encoding
         soup = BeautifulSoup(res.text, 'html.parser')
         titulo = (soup.find('h1', class_='t1') or soup.find('h1', class_='t3') or soup.find('h1')).get_text().strip()
-        conteudo = soup.find('pre').get_text()
+        corpo = soup.find('pre')
+        conteudo = corpo.get_text() if corpo else ""
         return titulo, conteudo
     except: return "", ""
 
@@ -102,13 +114,13 @@ def dividir_em_colunas(texto):
 st.sidebar.title("🎵 Music Book")
 aba = st.sidebar.radio("Navegação", ["Adicionar Música", "Visualizar Book", "Exportar"])
 
-# Transposição global na sidebar (opcional, pode ser zerada)
 st.sidebar.divider()
 st.sidebar.markdown("### 🎸 Ajuste de Tom")
 c_tom1, c_tom2, c_tom3 = st.sidebar.columns(3)
 if c_tom1.button("♭"): st.session_state.tom_ajuste -= 1
 if c_tom2.button("0"): st.session_state.tom_ajuste = 0
 if c_tom3.button("♯"): st.session_state.tom_ajuste += 1
+st.sidebar.caption(f"Ajuste global: {st.session_state.tom_ajuste}")
 
 # ====================== ADICIONAR MÚSICA ======================
 if aba == "Adicionar Música":
@@ -127,32 +139,28 @@ if aba == "Adicionar Música":
         if st.button("✂️ 2 Colunas"): st.session_state.temp_conteudo = dividir_em_colunas(st.session_state.original_conteudo); st.rerun()
 
     st.divider()
-    st.subheader("Configurações desta Música")
     
-    # Botões de tamanho de letra exclusivos para a música que está sendo adicionada
+    # Ajuste de fonte apenas para a música atual
+    st.subheader("Configurações desta Música")
     c_f1, c_f2, c_f3 = st.columns([1,1,4])
     if c_f1.button("A-"): st.session_state.fonte_atual_edicao -= 1
     if c_f3.button("A+"): st.session_state.fonte_atual_edicao += 1
-    st.write(f"Tamanho da letra para esta música: **{st.session_state.fonte_atual_edicao}pt**")
-
-    # Injeta CSS apenas para a área de texto de edição
-    st.markdown(f"<style>textarea {{ font-size: {st.session_state.fonte_atual_edicao}pt !important; }}</style>", unsafe_allow_html=True)
+    
+    # Injeta CSS para o campo de edição respeitar o tamanho da fonte
+    st.markdown(f"<style>textarea {{ font-size: {st.session_state.fonte_atual_edicao}pt !important; line-height: 1.2 !important; }}</style>", unsafe_allow_html=True)
 
     tit = st.text_input("Título:", value=st.session_state.temp_titulo)
-    cif = st.text_area("Cifra (Editável):", value=processar_transposicao(st.session_state.temp_conteudo, st.session_state.tom_ajuste), height=400)
+    conteudo_transp = processar_transposicao(st.session_state.temp_conteudo, st.session_state.tom_ajuste)
+    cif = st.text_area("Cifra (Editável):", value=conteudo_transp, height=400)
     
     if st.button("✅ Salvar no Book"):
-        # Salva o tamanho da fonte junto com a música
         st.session_state.book.append({
             "titulo": tit, 
             "conteudo": cif, 
             "tamanho_fonte": st.session_state.fonte_atual_edicao
         })
-        st.session_state.temp_titulo = ""
-        st.session_state.temp_conteudo = ""
-        st.session_state.fonte_atual_edicao = 11 # Reseta para a próxima
-        st.session_state.limpador += 1
-        st.success("Música salva com o tamanho escolhido!")
+        st.session_state.temp_titulo = ""; st.session_state.temp_conteudo = ""; st.session_state.fonte_atual_edicao = 11; st.session_state.limpador += 1
+        st.success("Música salva!")
         time.sleep(0.5)
         st.rerun()
 
@@ -163,30 +171,33 @@ elif aba == "Visualizar Book":
         st.info("Book vazio.")
     else:
         for i, m in enumerate(st.session_state.book):
-            # Recupera o tamanho da fonte específico desta música
             f_size = m.get("tamanho_fonte", 11)
-            linhas_por_pagina = int(600 / (f_size * 1.2))
+            # Cálculo de linhas por página (ajustado para ser mais preciso)
+            linhas_por_pagina = int(750 / (f_size * 1.3))
             
-            with st.expander(f"🎸 {m['titulo']} ({f_size}pt)", expanded=False):
-                st.caption(f"Tamanho da fonte: {f_size}pt | Tom ajustado na visualização")
+            with st.expander(f"🎸 {m['titulo']} ({f_size}pt)", expanded=True):
+                # Aplicamos a transposição global da sidebar na visualização também
+                cifra_final = processar_transposicao(m['conteudo'], st.session_state.tom_ajuste)
+                linhas = cifra_final.split('\n')
                 
-                conteudo = processar_transposicao(m['conteudo'], st.session_state.tom_ajuste)
-                linhas = conteudo.split('\n')
-                
-                # Container Visual com a fonte específica da música
+                # HTML Container para garantir o alinhamento perfeito
                 st.markdown(f"""
-                    <div class="page-container" style="font-family: 'Courier New', monospace; font-size: {f_size}pt; line-height: 1.2; white-space: pre;">
-                    <div style="font-size: 1.5em; font-weight: bold; margin-bottom: 10px;">{m['titulo']}</div>
+                <div class="page-container" style="font-size: {f_size}pt;">
+                    <div style="font-size: 1.4em; font-weight: bold; border-bottom: 1px solid #444; margin-bottom: 15px;">{m['titulo']}</div>
+                    <div style="font-family: 'Courier New', Courier, monospace;">
                 """, unsafe_allow_html=True)
                 
+                # Loop para exibir linha por linha com o simulador de corte
                 for idx, linha in enumerate(linhas):
-                    st.write(linha) # Usar st.write dentro do container ou concatenar HTML
+                    # Usamos o format para garantir que espaços no início não sumam
+                    st.markdown(f'<span class="linha-cifra">{linha}</span>', unsafe_allow_html=True)
+                    
                     if (idx + 1) % linhas_por_pagina == 0 and (idx + 1) < len(linhas):
                         st.markdown('<div class="page-break-line"></div>', unsafe_allow_html=True)
                 
-                st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown("</div></div>", unsafe_allow_html=True)
                 
-                if st.button(f"🗑️ Excluir", key=f"del_{i}"):
+                if st.button(f"🗑️ Excluir Música", key=f"del_{i}"):
                     st.session_state.book.pop(i)
                     st.rerun()
 
@@ -197,9 +208,8 @@ elif aba == "Exportar":
         st.warning("Adicione músicas.")
     else:
         nome_arq = st.text_input("Nome do arquivo:", "Meu_Repertorio").replace(" ", "_")
-        st.write("Cada música será exportada com seu próprio tamanho de letra configurado.")
-        
         c1, c2 = st.columns(2)
+        
         with c1:
             doc = Document()
             for i, m in enumerate(st.session_state.book):
@@ -207,10 +217,8 @@ elif aba == "Exportar":
                 doc.add_heading(m['titulo'], 1)
                 run = doc.add_paragraph().add_run(processar_transposicao(m['conteudo'], st.session_state.tom_ajuste))
                 run.font.name = 'Courier New'
-                run.font.size = Pt(m.get("tamanho_fonte", 11)) # USA O TAMANHO DA MÚSICA
-            
-            buf = io.BytesIO()
-            doc.save(buf)
+                run.font.size = Pt(m.get("tamanho_fonte", 11))
+            buf = io.BytesIO(); doc.save(buf)
             st.download_button("📥 Word (.docx)", buf.getvalue(), f"{nome_arq}.docx")
 
         with c2:
@@ -221,11 +229,7 @@ elif aba == "Exportar":
                     pdf.add_page()
                     pdf.set_font("Courier", 'B', 14)
                     pdf.cell(0, 10, m['titulo'].encode('latin-1', 'replace').decode('latin-1'), ln=True)
-                    
-                    # APLICA O TAMANHO ESPECÍFICO DA MÚSICA NO PDF
                     pdf.set_font("Courier", size=m.get("tamanho_fonte", 11))
-                    
-                    cif_transp = processar_transposicao(m['conteudo'], st.session_state.tom_ajuste)
-                    pdf.multi_cell(0, 5, cif_transp.encode('latin-1', 'replace').decode('latin-1'))
-                
+                    cif_p = processar_transposicao(m['conteudo'], st.session_state.tom_ajuste)
+                    pdf.multi_cell(0, 5, cif_p.encode('latin-1', 'replace').decode('latin-1'))
                 st.download_button("📥 PDF (.pdf)", pdf.output(dest='S'), f"{nome_arq}.pdf")
