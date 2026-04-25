@@ -27,6 +27,7 @@ st.markdown("""
         border: 1px solid #333;
         color: #FFFFFF;
         line-height: 1.2;
+        margin-bottom: 20px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -53,7 +54,6 @@ def processar_texto(texto, semitons, colunas):
     if not texto: return ""
     linhas = texto.split('\n')
     
-    # 1. Transposição linha a linha
     linhas_t = []
     for linha in linhas:
         nova = ""
@@ -63,11 +63,9 @@ def processar_texto(texto, semitons, colunas):
             pos = m.start() + len(m.group())
         linhas_t.append(nova + (" " * (len(linha) - pos)))
 
-    # 2. Divisão Inteligente (Acorde + Letra juntos)
     if colunas == "2 Colunas":
         total = len(linhas_t)
         meio = (total // 2) + (total % 2)
-        # Tenta evitar quebrar a linha de acorde da linha de letra
         if meio < total and len(re.findall(r'[A-G][b#]?[a-z0-9]*', linhas_t[meio])) > 0:
             meio += 1
             
@@ -89,44 +87,44 @@ aba = st.sidebar.radio("Navegação", ["Adicionar Música", "Visualizar Book", "
 st.sidebar.divider()
 st.sidebar.markdown("### 🛠️ Ajustes da Música Selecionada")
 
-def ajustar_focada(campo, valor):
+# FUNÇÕES DE AJUSTE DOS BOTÕES
+def ajustar_fonte(delta):
     if st.session_state.musica_focada is not None:
-        idx = st.session_state.musica_focada
-        st.session_state.book[idx][campo] = valor
+        st.session_state.book[st.session_state.musica_focada]['fonte'] += delta
 
-# Controles que atuam na música "focada"
+def set_fonte(valor):
+    if st.session_state.musica_focada is not None:
+        st.session_state.book[st.session_state.musica_focada]['fonte'] = valor
+
+def ajustar_tom(delta):
+    if st.session_state.musica_focada is not None:
+        st.session_state.book[st.session_state.musica_focada]['tom'] += delta
+
+def set_tom(valor):
+    if st.session_state.musica_focada is not None:
+        st.session_state.book[st.session_state.musica_focada]['tom'] = valor
+
+def set_layout(modo):
+    if st.session_state.musica_focada is not None:
+        st.session_state.book[st.session_state.musica_focada]['cols'] = modo
+
+# CONTROLES NA SIDEBAR
 st.sidebar.write("Tamanho da Letra:")
 c1, c2, c3 = st.sidebar.columns(3)
-if c1.button("A-"): 
-    if st.session_state.musica_focada is not None:
-        st.session_state.book[st.session_state.musica_focada]['fonte'] -= 1
-if c2.button("11"):
-    if st.session_state.musica_focada is not None:
-        st.session_state.book[st.session_state.musica_focada]['fonte'] = 11
-if c3.button("A+"):
-    if st.session_state.musica_focada is not None:
-        st.session_state.book[st.session_state.musica_focada]['fonte'] += 1
+c1.button("A-", on_click=ajustar_fonte, args=(-1,))
+c2.button("11", on_click=set_fonte, args=(11,))
+c3.button("A+", on_click=ajustar_fonte, args=(1,))
 
 st.sidebar.write("Tom:")
 t1, t2, t3 = st.sidebar.columns(3)
-if t1.button("♭"):
-    if st.session_state.musica_focada is not None:
-        st.session_state.book[st.session_state.musica_focada]['tom'] -= 1
-if t2.button("0"):
-    if st.session_state.musica_focada is not None:
-        st.session_state.book[st.session_state.musica_focada]['tom'] = 0
-if t3.button("♯"):
-    if st.session_state.musica_focada is not None:
-        st.session_state.book[st.session_state.musica_focada]['tom'] += 1
+t1.button("♭", on_click=ajustar_tom, args=(-1,))
+t2.button("0", on_click=set_tom, args=(0,))
+t3.button("♯", on_click=ajustar_tom, args=(1,))
 
 st.sidebar.write("Layout:")
 l1, l2 = st.sidebar.columns(2)
-if l1.button("📄 1 Col"):
-    if st.session_state.musica_focada is not None:
-        st.session_state.book[st.session_state.musica_focada]['cols'] = "1 Coluna"
-if l2.button("✂️ 2 Col"):
-    if st.session_state.musica_focada is not None:
-        st.session_state.book[st.session_state.musica_focada]['cols'] = "2 Colunas"
+l1.button("📄 1 Col", on_click=set_layout, args=("1 Coluna",))
+l2.button("✂️ 2 Col", on_click=set_layout, args=("2 Colunas",))
 
 # ====================== ADICIONAR MÚSICA ======================
 if aba == "Adicionar Música":
@@ -150,7 +148,7 @@ if aba == "Adicionar Música":
     if st.button("✅ Adicionar ao Repertório"):
         st.session_state.book.append({
             "titulo": tit, "conteudo": cif, 
-            "fonte": 11, "tom": 0, "cols": "1 Coluna"
+            "fonte": 12, "tom": 0, "cols": "1 Coluna"
         })
         st.session_state.temp_titulo = ""; st.session_state.temp_conteudo = ""; st.session_state.limpador += 1
         st.success("Adicionado!")
@@ -163,20 +161,28 @@ elif aba == "Visualizar Book":
         st.info("O book está vazio.")
     else:
         for i, m in enumerate(st.session_state.book):
-            # Expander que define qual música está em "foco" para o menu lateral
-            if st.expander(f"🎸 {m['titulo']} (Tamanho: {m['fonte']}pt | Tom: {m['tom']})", expanded=(st.session_state.musica_focada == i)):
-                st.session_state.musica_focada = i
+            # Identifica qual música está aberta para os botões da sidebar funcionarem
+            with st.expander(f"🎸 {m['titulo']} ({m['fonte']}pt | Tom: {m['tom']})", expanded=(st.session_state.musica_focada == i)):
+                if st.session_state.musica_focada != i:
+                    st.session_state.musica_focada = i
+                    st.rerun()
                 
-                # Processamento individual da música
                 texto_proc = processar_texto(m['conteudo'], m['tom'], m['cols'])
                 
+                # INÍCIO DO QUADRADO DA MÚSICA
                 st.markdown(f'<div class="page-container" style="font-size: {m["fonte"]}pt;">', unsafe_allow_html=True)
+                
+                # Título dentro do quadrado
+                st.markdown(f"### {m['titulo']}")
+                
                 bloco = ""
                 for linha in texto_proc.split('\n'):
                     l_html = linha.replace(" ", "&nbsp;")
                     bloco += f'<div class="cifra-renderizada">{l_html if l_html != "" else "&nbsp;"}</div>'
+                
                 st.markdown(bloco, unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True) 
+                # FIM DO QUADRADO
                 
                 if st.button(f"🗑️ Excluir Música", key=f"del_{i}"):
                     st.session_state.book.pop(i)
