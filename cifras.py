@@ -14,6 +14,7 @@ st.set_page_config(page_title="Music Book Pro", page_icon="🎸", layout="wide")
 st.markdown("""
     <style>
     textarea { font-family: 'Courier New', Courier, monospace !important; }
+    .stButton > button { width: 100%; border-radius: 5px; height: 3em; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -28,9 +29,12 @@ if 'temp_conteudo' not in st.session_state:
     st.session_state.temp_conteudo = ""
 if 'original_conteudo' not in st.session_state:
     st.session_state.original_conteudo = ""
+if 'tom_ajuste' not in st.session_state:
+    st.session_state.tom_ajuste = 0
 
 # --- LÓGICA DE TRANSPOSIÇÃO ---
-NOTAS = ['B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#']
+# Escala completa para referência
+NOTAS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
 def transpor_acorde(acorde, semitons):
     def substituir(match):
@@ -72,6 +76,7 @@ def limpar_campos():
     st.session_state.temp_titulo = ""
     st.session_state.temp_conteudo = ""
     st.session_state.original_conteudo = ""
+    st.session_state.tom_ajuste = 0
 
 def buscar_cifra(url):
     try:
@@ -79,13 +84,10 @@ def buscar_cifra(url):
         res = requests.get(url, headers=headers, timeout=10)
         res.encoding = res.apparent_encoding
         soup = BeautifulSoup(res.text, 'html.parser')
-        
         titulo_tag = soup.find('h1', class_='t1') or soup.find('h1', class_='t3') or soup.find('h1')
         titulo = titulo_tag.get_text().strip() if titulo_tag else "Nova Música"
-        
         corpo = soup.find('pre')
         conteudo = corpo.get_text() if corpo else ""
-        
         return titulo, conteudo
     except:
         return "", ""
@@ -106,15 +108,20 @@ def dividir_em_colunas(texto):
 st.sidebar.title("🎵 Music Book")
 aba = st.sidebar.radio("Navegação", ["Adicionar Música", "Visualizar Book", "Exportar"])
 
-opcoes_tons = ["-3 (G#)", "-2 (A)", "-1 (A#)", "0 (Tom Original)",
-                "+1 (C)", "+2 (C#)", "+3 (D)", "+4 (D#)", "+5 (E)", "+6 (F)"]
+# Seletor de Tom por Botões na Sidebar
+st.sidebar.markdown("### 🎸 Ajustar Tom")
+col_tom1, col_tom2, col_tom3 = st.sidebar.columns(3)
+if col_tom1.button("♭"): st.session_state.tom_ajuste -= 1
+if col_tom2.button("0"): st.session_state.tom_ajuste = 0
+if col_tom3.button("♯"): st.session_state.tom_ajuste += 1
+st.sidebar.write(f"Ajuste atual: **{st.session_state.tom_ajuste} semitons**")
 
 # ====================== ADICIONAR MÚSICA ======================
 if aba == "Adicionar Música":
     st.header("🔍 Importar e Personalizar")
     
     c_id = st.session_state.limpador
-    url = st.text_input("Link da cifra (ex: Cifra Club):", key=f"url_{c_id}")
+    url = st.text_input("Link da cifra:", key=f"url_{c_id}")
     
     col_cap, col_div2, col_div1 = st.columns(3)
     with col_cap:
@@ -140,11 +147,8 @@ if aba == "Adicionar Música":
     
     titulo_f = st.text_input("Título:", value=st.session_state.temp_titulo, key=f"tit_{c_id}")
     
-    tom_selecionado = st.sidebar.selectbox("🎸 Transpor Tonalidade", opcoes_tons, index=3)
-    match_tom = re.search(r"([+-]?\d+)", tom_selecionado)
-    tom_ajuste = int(match_tom.group(1)) if match_tom else 0
-    
-    conteudo_visivel = processar_transposicao(st.session_state.temp_conteudo, tom_ajuste)
+    # Processa a cifra com o tom escolhido nos botões
+    conteudo_visivel = processar_transposicao(st.session_state.temp_conteudo, st.session_state.tom_ajuste)
     conteudo_f = st.text_area("Cifra (Editável):", value=conteudo_visivel, height=500)
     
     if st.button("✅ Salvar no meu Book"):
@@ -157,8 +161,6 @@ if aba == "Adicionar Música":
             time.sleep(0.5)
             limpar_campos()
             st.rerun()
-        else:
-            st.warning("Preencha o título e a cifra antes de salvar.")
 
 # ====================== VISUALIZAR BOOK ======================
 elif aba == "Visualizar Book":
@@ -168,7 +170,9 @@ elif aba == "Visualizar Book":
     else:
         for i, m in enumerate(st.session_state.book):
             with st.expander(f"🎸 {m['titulo']}"):
-                st.code(m['conteudo'], language=None)
+                # Aqui o usuário pode ver a música e transpor em tempo real para visualização
+                cifra_transposta = processar_transposicao(m['conteudo'], st.session_state.tom_ajuste)
+                st.code(cifra_transposta, language=None)
                 if st.button(f"🗑️ Excluir música", key=f"del_{i}"):
                     st.session_state.book.pop(i)
                     st.rerun()
@@ -183,32 +187,29 @@ elif aba == "Exportar":
         nome_proj = st.text_input("Título do Projeto:", value="Meu Repertorio")
         nome_arq = nome_proj.replace(" ", "_").lower()
         
+        st.write(f"As músicas serão exportadas com o ajuste de **{st.session_state.tom_ajuste}** semitons.")
         st.divider()
         c1, c2, c3 = st.columns(3)
         
         with c1:
-            # Exportação TXT
             txt = f"{nome_proj.upper()}\n" + ("="*40) + "\n\n"
             for m in st.session_state.book:
-                txt += f"{m['titulo'].upper()}\n\n{m['conteudo']}\n\n"
+                txt += f"{m['titulo'].upper()}\n\n"
+                txt += f"{processar_transposicao(m['conteudo'], st.session_state.tom_ajuste)}\n\n"
                 txt += f"{'-'*60}\n\n"
-            st.download_button("📥 Baixar TXT", txt, f"{nome_arq}.txt", mime="text/plain")
+            st.download_button("📥 Baixar TXT", txt, f"{nome_arq}.txt")
         
         with c2:
-            # Exportação DOCX (Word)
             doc = Document()
             for s in doc.sections:
                 s.top_margin = s.bottom_margin = s.left_margin = s.right_margin = Inches(0.5)
-            
             doc.add_heading(nome_proj, 0)
             
             for i, m in enumerate(st.session_state.book):
-                if i > 0:
-                    doc.add_page_break() # Força nova música em nova página
-                
+                if i > 0: doc.add_page_break()
                 doc.add_heading(m['titulo'], 1)
                 p = doc.add_paragraph()
-                run = p.add_run(m['conteudo'])
+                run = p.add_run(processar_transposicao(m['conteudo'], st.session_state.tom_ajuste))
                 run.font.name = 'Courier New'
                 run.font.size = Pt(10)
             
@@ -217,27 +218,18 @@ elif aba == "Exportar":
             st.download_button("📥 Baixar DOCX", buf.getvalue(), f"{nome_arq}.docx")
         
         with c3:
-            # Exportação PDF
             if st.button("Gerar PDF"):
                 pdf = FPDF()
                 pdf.set_auto_page_break(auto=True, margin=15)
-                
                 for m in st.session_state.book:
-                    pdf.add_page() # Inicia cada música em uma nova página
-                    
-                    # Título
+                    pdf.add_page()
                     pdf.set_font("Courier", 'B', 14)
                     pdf.cell(0, 10, m['titulo'].encode('latin-1', 'replace').decode('latin-1'), ln=True, align='C')
                     pdf.ln(5)
-                    
-                    # Cifra
                     pdf.set_font("Courier", size=10)
-                    texto = m['conteudo']
-                    # O multi_cell cuida de quebrar a página se a música for maior que 1 folha
+                    texto = processar_transposicao(m['conteudo'], st.session_state.tom_ajuste)
                     pdf.multi_cell(0, 5, texto.encode('latin-1', 'replace').decode('latin-1'))
                 
                 pdf_output = pdf.output(dest='S')
-                if not isinstance(pdf_output, bytes):
-                    pdf_output = pdf_output.encode('latin-1')
-                
-                st.download_button("📥 Baixar PDF", pdf_output, f"{nome_arq}.pdf", mime="application/pdf")
+                if not isinstance(pdf_output, bytes): pdf_output = pdf_output.encode('latin-1')
+                st.download_button("📥 Baixar PDF", pdf_output, f"{nome_arq}.pdf")
