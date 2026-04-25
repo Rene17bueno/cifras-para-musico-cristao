@@ -9,61 +9,52 @@ from docx import Document
 from docx.shared import Pt
 
 # -------------------------------------------------
-# CONFIGURAÇÃO E BOOTSTRAP CSS
+# 1. CONFIGURAÇÃO E INTERFACE (BOOTSTRAP)
 # -------------------------------------------------
 st.set_page_config(page_title="Music Book Pro", page_icon="🎸", layout="wide")
 
-# Injetando Bootstrap via CDN e Estilos Customizados
 st.markdown("""
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; }
-        .main { background-color: #f8f9fa; }
-        
-        /* Simulação da Folha A4 */
         .paper-a4 {
             background: white;
-            padding: 50px;
+            padding: 60px;
             margin: 20px auto;
             width: 100%;
-            max-width: 850px;
-            min-height: 600px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            border: 1px solid #dee2e6;
+            max-width: 800px;
+            min-height: 1000px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+            border: 1px solid #ddd;
             font-family: 'Courier New', Courier, monospace;
-            color: #212529;
+            color: black;
             overflow-x: auto;
         }
-        
-        /* Alerta de erro de margem */
-        .paper-warning {
-            border: 3px solid #dc3545 !important;
+        .warning-margin {
+            border: 3px solid #ff4b4b !important;
         }
-
-        .cifra-text {
+        .cifra-content {
             font-size: 11pt;
-            line-height: 1.3;
             white-space: pre;
+            line-height: 1.2;
         }
-        
-        .sidebar-title { color: #0d6efd; font-weight: bold; }
+        .sidebar-header { color: #0d6efd; font-weight: bold; margin-bottom: 20px; }
     </style>
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------
-# ESTADO DA SESSÃO
+# 2. ESTADO DO SISTEMA
 # -------------------------------------------------
 if "book" not in st.session_state:
     st.session_state.book = []
 if "musica_focada" not in st.session_state:
-    st.session_state.musica_focada = None
+    st.session_state.musica_focada = 0
 if "temp_titulo" not in st.session_state:
     st.session_state.temp_titulo = ""
 if "temp_conteudo" not in st.session_state:
     st.session_state.temp_conteudo = ""
 
 # -------------------------------------------------
-# LÓGICA DE TRANSPOSIÇÃO
+# 3. FUNÇÕES DE TRANSPOSIÇÃO E PROCESSAMENTO
 # -------------------------------------------------
 NOTAS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
@@ -99,125 +90,126 @@ def processar_texto(texto, semitons, colunas):
     return "\n".join(linhas_t)
 
 # -------------------------------------------------
-# SIDEBAR (CONTROLES BOOTSTRAP STYLE)
+# 4. FUNÇÕES DE EXPORTAÇÃO
 # -------------------------------------------------
-with st.sidebar:
-    st.markdown("<h2 class='sidebar-title'>🎸 Music Book Pro</h2>", unsafe_allow_html=True)
-    aba = st.radio("Navegação", ["➕ Adicionar", "📖 Visual Book", "💾 Exportar"])
-    
-    st.divider()
-    
-    if st.session_state.musica_focada is not None and st.session_state.book:
-        idx = st.session_state.musica_focada
-        m = st.session_state.book[idx]
-        st.markdown(f"**Ajustando:** <span class='badge bg-primary'>{m['titulo']}</span>", unsafe_allow_html=True)
-        
-        st.write("Transposição (Tom)")
-        c1, c2, c3 = st.columns(3)
-        if c1.button("♭", key="bt_b"): m["tom"] -= 1; st.rerun()
-        if c2.button("0", key="bt_0"): m["tom"] = 0; st.rerun()
-        if c3.button("♯", key="bt_s"): m["tom"] += 1; st.rerun()
-        
-        st.write("Layout da Folha")
-        l1, l2 = st.columns(2)
-        if l1.button("1 Coluna", use_container_width=True): m["cols"] = "1 Coluna"; st.rerun()
-        if l2.button("2 Colunas", use_container_width=True): m["cols"] = "2 Colunas"; st.rerun()
-    else:
-        st.info("Selecione uma música no Visual Book para editar.")
+def gerar_pdf():
+    pdf = FPDF()
+    for m in st.session_state.book:
+        pdf.add_page()
+        pdf.set_font("Courier", "B", 16)
+        pdf.cell(0, 10, m['titulo'].encode('latin-1', 'replace').decode('latin-1'), ln=True)
+        pdf.set_font("Courier", size=11)
+        txt = processar_texto(m["conteudo"], m["tom"], m["cols"])
+        pdf.multi_cell(0, 5, txt.encode('latin-1', 'replace').decode('latin-1'))
+    return pdf.output(dest='S').encode('latin-1')
+
+def gerar_docx():
+    doc = Document()
+    for m in st.session_state.book:
+        doc.add_heading(m['titulo'], 0)
+        txt = processar_texto(m["conteudo"], m["tom"], m["cols"])
+        p = doc.add_paragraph()
+        run = p.add_run(txt)
+        run.font.name = 'Courier New'
+        run.font.size = Pt(11)
+        doc.add_page_break()
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
 
 # -------------------------------------------------
-# ABA: ADICIONAR (LAYOUT EM CARDS)
+# 5. SIDEBAR (MENU E AJUSTES)
 # -------------------------------------------------
-if aba == "➕ Adicionar":
-    st.markdown("<div class='card p-4'>", unsafe_allow_html=True)
-    st.header("Capturar Nova Cifra")
-    url = st.text_input("Cole o link do CifraClub")
-    if st.button("Importar do Site"):
+with st.sidebar:
+    st.markdown("<h2 class='sidebar-header'>🎵 Music Book Pro</h2>", unsafe_allow_html=True)
+    aba = st.radio("Navegação", ["Adicionar Música", "Visualizar Book", "Exportar"])
+    
+    if st.session_state.book and aba == "Visualizar Book":
+        st.divider()
+        st.subheader("🛠️ Ajustes Ativos")
+        idx = st.session_state.musica_focada
+        m = st.session_state.book[idx]
+        
+        st.write(f"Música: **{m['titulo']}**")
+        col1, col2, col3 = st.columns(3)
+        if col1.button("♭"): m["tom"] -= 1; st.rerun()
+        if col2.button("0"): m["tom"] = 0; st.rerun()
+        if col3.button("♯"): m["tom"] += 1; st.rerun()
+        
+        layout = st.radio("Layout", ["1 Coluna", "2 Colunas"], index=0 if m["cols"]=="1 Coluna" else 1)
+        m["cols"] = layout
+
+# -------------------------------------------------
+# 6. CONTEÚDO PRINCIPAL
+# -------------------------------------------------
+if aba == "Adicionar Música":
+    st.header("➕ Nova Cifra")
+    url = st.text_input("Link CifraClub")
+    if st.button("Capturar"):
         try:
-            res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=5)
+            res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
             soup = BeautifulSoup(res.text, "html.parser")
             st.session_state.temp_titulo = soup.find("h1").get_text().strip()
             st.session_state.temp_conteudo = soup.find("pre").get_text()
-            st.success("Cifra carregada com sucesso!")
             st.rerun()
-        except: st.error("Não foi possível acessar o link.")
-    
-    st.divider()
-    
-    tit = st.text_input("Título da Música", value=st.session_state.temp_titulo)
-    cif = st.text_area("Cifra (Texto)", value=st.session_state.temp_conteudo, height=250)
-    
-    if st.button("✅ Salvar no Repertório", type="primary"):
-        if tit and cif:
-            st.session_state.book.append({"titulo": tit, "conteudo": cif, "tom": 0, "cols": "1 Coluna"})
-            st.session_state.temp_titulo, st.session_state.temp_conteudo = "", ""
-            st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+        except: st.error("Erro ao capturar.")
 
-# -------------------------------------------------
-# ABA: VISUAL BOOK (SIMULAÇÃO A4)
-# -------------------------------------------------
-elif aba == "📖 Visual Book":
+    tit = st.text_input("Título", value=st.session_state.temp_titulo)
+    cif = st.text_area("Cifra", value=st.session_state.temp_conteudo, height=300)
+    
+    if st.button("✅ Salvar no Book"):
+        st.session_state.book.append({"titulo": tit, "conteudo": cif, "tom": 0, "cols": "1 Coluna"})
+        st.session_state.temp_titulo = ""; st.session_state.temp_conteudo = ""
+        st.rerun()
+
+elif aba == "Visualizar Book":
+    if not st.session_state.book:
+        st.info("O book está vazio.")
+    else:
+        titulos = [m['titulo'] for m in st.session_state.book]
+        st.session_state.musica_focada = st.selectbox("Escolha a música para ver/ajustar:", range(len(titulos)), format_func=lambda x: titulos[x])
+        
+        m = st.session_state.book[st.session_state.musica_focada]
+        texto_render = processar_texto(m["conteudo"], m["tom"], m["cols"])
+        
+        # Validação de Margem A4 (Courier 11pt suporta ~80 chars)
+        estourou = any(len(l) > 80 for l in texto_render.split("\n"))
+        
+        if estourou:
+            st.error("⚠️ LINHA FORA DA MARGEM A4! Diminua o texto ou use 1 coluna.")
+            
+        st.markdown(f"""
+            <div class="paper-a4 {'warning-margin' if estourou else ''}">
+                <h2 style="text-align:center;">{m['titulo']}</h2>
+                <hr>
+                <div class="cifra-content">{texto_render.replace(" ", "&nbsp;")}</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        if st.button("🗑️ Excluir Música"):
+            st.session_state.book.pop(st.session_state.musica_focada)
+            st.rerun()
+
+elif aba == "Exportar":
+    st.header("📂 Exportar Livro")
     if not st.session_state.book:
         st.warning("Adicione músicas primeiro.")
     else:
-        st.header("Visualização de Impressão")
+        st.markdown("### Escolha o formato para baixar todo o repertório:")
+        c1, c2, c3, c4 = st.columns(4)
         
-        for i, m in enumerate(st.session_state.book):
-            with st.expander(f"{m['titulo']} (Tom: {m['tom']})", expanded=(st.session_state.musica_focada == i)):
-                col_btn1, col_btn2 = st.columns([1, 5])
-                if col_btn1.button("🎯 EDITAR", key=f"edit_{i}"):
-                    st.session_state.musica_focada = i
-                    st.rerun()
-                
-                texto_final = processar_texto(m["conteudo"], m["tom"], m["cols"])
-                
-                # Verificação de margem (80 caracteres é o limite do A4 Courier 11pt)
-                estourou = any(len(l) > 80 for l in texto_final.split("\n"))
-                if estourou:
-                    st.markdown("<div class='alert alert-danger'>⚠️ <b>Atenção:</b> Esta música ultrapassa a margem lateral da folha A4!</div>", unsafe_allow_html=True)
-                
-                # Renderização da "Folha"
-                warn_css = "paper-warning" if estourou else ""
-                st.markdown(f"""
-                    <div class="paper-a4 {warn_css}">
-                        <h2 class="text-center mb-4">{m['titulo']}</h2>
-                        <div class="cifra-text">{texto_final.replace(" ", "&nbsp;")}</div>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                if st.button("🗑️ Excluir", key=f"del_{i}"):
-                    st.session_state.book.pop(i)
-                    st.rerun()
-
-# -------------------------------------------------
-# ABA: EXPORTAR (BOTÕES DE DOWNLOAD)
-# -------------------------------------------------
-elif aba == "💾 Exportar":
-    st.header("Gerar Arquivos Finais")
-    if not st.session_state.book:
-        st.info("Repertório vazio.")
-    else:
-        st.markdown("<div class='row'>", unsafe_allow_html=True)
-        
-        # Função DOCX
-        def get_docx():
-            doc = Document()
-            for m in st.session_state.book:
-                doc.add_heading(m['titulo'], level=1)
-                p = doc.add_paragraph(processar_texto(m["conteudo"], m["tom"], m["cols"]))
-                p.style.font.name = 'Courier New'
-                doc.add_page_break()
-            buf = io.BytesIO()
-            doc.save(buf)
-            return buf.getvalue()
-
-        # Botões
-        c1, c2, c3 = st.columns(3)
         with c1:
-            st.download_button("📑 Baixar Word (.docx)", get_docx(), "repertorio.docx", use_container_width=True)
+            st.download_button("📑 PDF", gerar_pdf(), "repertorio.pdf", use_container_width=True)
         with c2:
-            txt_book = "\n\n".join([f"== {m['titulo']} ==\n{processar_texto(m['conteudo'], m['tom'], '1 Coluna')}" for m in st.session_state.book])
-            st.download_button("📝 Baixar Texto (.txt)", txt_book.encode("utf-8"), "repertorio.txt", use_container_width=True)
+            st.download_button("🟦 Word (.docx)", gerar_docx(), "repertorio.docx", use_container_width=True)
+        
+        # Lógica TXT comum para os dois últimos
+        txt_full = ""
+        for m in st.session_state.book:
+            txt_full += f"\n\n{'='*30}\n{m['titulo'].upper()}\n{'='*30}\n"
+            txt_full += processar_texto(m["conteudo"], m["tom"], "1 Coluna")
+            
         with c3:
-            st.download_button("📱 Formato Kindle (.txt)", txt_book.encode("utf-8"), "kindle.txt", use_container_width=True)
+            st.download_button("📝 Texto (.txt)", txt_full.encode("utf-8"), "repertorio.txt", use_container_width=True)
+        with c4:
+            st.download_button("📱 Kindle", txt_full.encode("utf-8"), "kindle.txt", use_container_width=True)
