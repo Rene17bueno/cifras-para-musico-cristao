@@ -14,7 +14,9 @@ st.set_page_config(page_title="Music Book Pro", page_icon="🎸", layout="wide")
 st.markdown("""
     <style>
     textarea { font-family: 'Courier New', Courier, monospace !important; }
-    .stButton > button { width: 100%; border-radius: 5px; height: 3em; }
+    .stButton > button { width: 100%; border-radius: 5px; }
+    /* Estilo para os botões de fonte ficarem menores e lado a lado */
+    .font-btn > div { padding: 0px 5px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -31,6 +33,8 @@ if 'original_conteudo' not in st.session_state:
     st.session_state.original_conteudo = ""
 if 'tom_ajuste' not in st.session_state:
     st.session_state.tom_ajuste = 0
+if 'tamanho_fonte' not in st.session_state:
+    st.session_state.tamanho_fonte = 11  # Tamanho padrão inicial
 
 # --- LÓGICA DE TRANSPOSIÇÃO ---
 NOTAS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
@@ -74,7 +78,6 @@ def limpar_campos():
     st.session_state.temp_titulo = ""
     st.session_state.temp_conteudo = ""
     st.session_state.original_conteudo = ""
-    st.session_state.tom_ajuste = 0
     st.session_state.limpador += 1
 
 def buscar_cifra(url):
@@ -83,14 +86,10 @@ def buscar_cifra(url):
         res = requests.get(url, headers=headers, timeout=10)
         res.encoding = res.apparent_encoding
         soup = BeautifulSoup(res.text, 'html.parser')
-        
-        # Tenta pegar o título no H1 (padrão Cifra Club e outros)
         titulo_tag = soup.find('h1', class_='t1') or soup.find('h1', class_='t3') or soup.find('h1')
         titulo = titulo_tag.get_text().strip() if titulo_tag else ""
-        
         corpo = soup.find('pre')
         conteudo = corpo.get_text() if corpo else ""
-        
         return titulo, conteudo
     except:
         return "", ""
@@ -111,37 +110,51 @@ def dividir_em_colunas(texto):
 st.sidebar.title("🎵 Music Book")
 aba = st.sidebar.radio("Navegação", ["Adicionar Música", "Visualizar Book", "Exportar"])
 
-# Seletor de Tom por Botões
-st.sidebar.markdown("### 🎸 Ajustar Tom Geral")
-col_tom1, col_tom2, col_tom3 = st.sidebar.columns(3)
-if col_tom1.button("♭"): st.session_state.tom_ajuste -= 1
-if col_tom2.button("0"): st.session_state.tom_ajuste = 0
-if col_tom3.button("♯"): st.session_state.tom_ajuste += 1
-st.sidebar.write(f"Ajuste: **{st.session_state.tom_ajuste} semitons**")
+# --- CONTROLES GERAIS (Sidebar) ---
+st.sidebar.divider()
+st.sidebar.markdown("### 🎸 Ajustes de Visualização")
+
+# Ajuste de Tom
+st.sidebar.write("Transposição:")
+c_tom1, c_tom2, c_tom3 = st.sidebar.columns(3)
+if c_tom1.button("♭"): st.session_state.tom_ajuste -= 1
+if c_tom2.button("0"): st.session_state.tom_ajuste = 0
+if c_tom3.button("♯"): st.session_state.tom_ajuste += 1
+st.sidebar.caption(f"Tom atual: {st.session_state.tom_ajuste} semitons")
+
+# Ajuste de Tamanho da Fonte (Estilo Word)
+st.sidebar.write("Tamanho da Letra:")
+c_f1, c_f2, c_f3 = st.sidebar.columns(3)
+if c_f1.button("A-"): 
+    if st.session_state.tamanho_fonte > 6: st.session_state.tamanho_fonte -= 1
+if c_f2.button("11"): # Reset para o padrão
+    st.session_state.tamanho_fonte = 11
+if c_f3.button("A+"): 
+    if st.session_state.tamanho_fonte < 30: st.session_state.tamanho_fonte += 1
+st.sidebar.caption(f"Fonte atual: {st.session_state.tamanho_fonte}pt")
+
+# Injeta CSS dinâmico para o tamanho da letra na área de edição/visualização
+st.markdown(f"""
+    <style>
+    .stTextArea textarea {{ font-size: {st.session_state.tamanho_fonte}pt !important; }}
+    code {{ font-size: {st.session_state.tamanho_fonte}pt !important; }}
+    </style>
+    """, unsafe_allow_html=True)
 
 # ====================== ADICIONAR MÚSICA ======================
 if aba == "Adicionar Música":
     st.header("🔍 Importar e Personalizar")
-    
-    # Campo de URL
-    url = st.text_input("Link da cifra:", key=f"url_input_{st.session_state.limpador}")
+    url = st.text_input("Link da cifra:", key=f"url_in_{st.session_state.limpador}")
     
     col_cap, col_div2, col_div1 = st.columns(3)
-    
     with col_cap:
         if st.button("Capturar Dados"):
             if url:
                 t, c = buscar_cifra(url)
-                if t or c:
-                    st.session_state.temp_titulo = t
-                    st.session_state.temp_conteudo = c
-                    st.session_state.original_conteudo = c
-                    st.rerun()
-                else:
-                    st.error("Não foi possível capturar dados desta URL.")
-            else:
-                st.warning("Insira uma URL válida.")
-    
+                st.session_state.temp_titulo, st.session_state.temp_conteudo = t, c
+                st.session_state.original_conteudo = c
+                st.rerun()
+
     with col_div2:
         if st.button("✂️ Modo 2 Colunas"):
             if st.session_state.original_conteudo:
@@ -154,27 +167,17 @@ if aba == "Adicionar Música":
                 st.session_state.temp_conteudo = st.session_state.original_conteudo
                 st.rerun()
 
-    st.divider()
-    
-    # CAMPO TÍTULO (Editável e preenchido automaticamente)
     titulo_editado = st.text_input("Título da Música:", value=st.session_state.temp_titulo)
-    
-    # Processamento da Cifra
     conteudo_visivel = processar_transposicao(st.session_state.temp_conteudo, st.session_state.tom_ajuste)
     conteudo_editado = st.text_area("Cifra (Editável):", value=conteudo_visivel, height=450)
     
     if st.button("✅ Salvar no meu Book"):
         if titulo_editado.strip() and conteudo_editado.strip():
-            st.session_state.book.append({
-                "titulo": titulo_editado.strip(),
-                "conteudo": conteudo_editado
-            })
-            st.success(f"'{titulo_editado}' adicionada ao repertório!")
-            time.sleep(0.6)
+            st.session_state.book.append({"titulo": titulo_editado.strip(), "conteudo": conteudo_editado})
+            st.success(f"'{titulo_editado}' salva!")
+            time.sleep(0.5)
             limpar_campos()
             st.rerun()
-        else:
-            st.warning("O título e o conteúdo não podem estar vazios.")
 
 # ====================== VISUALIZAR BOOK ======================
 elif aba == "Visualizar Book":
@@ -184,7 +187,6 @@ elif aba == "Visualizar Book":
     else:
         for i, m in enumerate(st.session_state.book):
             with st.expander(f"🎸 {m['titulo']}"):
-                # Mostra a música com o ajuste de tom atual da sidebar
                 display = processar_transposicao(m['conteudo'], st.session_state.tom_ajuste)
                 st.code(display, language=None)
                 if st.button(f"Excluir {m['titulo']}", key=f"del_{i}"):
@@ -197,9 +199,10 @@ elif aba == "Exportar":
     if not st.session_state.book:
         st.warning("Adicione músicas primeiro.")
     else:
-        nome_proj = st.text_input("Nome do Livro/Projeto:", value="Meu Repertorio")
+        nome_proj = st.text_input("Nome do Livro:", value="Meu Repertorio")
         nome_arq = nome_proj.replace(" ", "_").lower()
         
+        st.info(f"O arquivo será gerado com Fonte tamanho **{st.session_state.tamanho_fonte}**.")
         st.divider()
         c1, c2, c3 = st.columns(3)
         
@@ -212,11 +215,10 @@ elif aba == "Exportar":
             st.download_button("📥 Baixar TXT", txt, f"{nome_arq}.txt")
             
         with c2:
-            # WORD (DOCX) - Com quebra de página
+            # WORD (DOCX)
             doc = Document()
             for s in doc.sections:
                 s.top_margin = s.bottom_margin = s.left_margin = s.right_margin = Inches(0.5)
-            
             doc.add_heading(nome_proj, 0)
             for i, m in enumerate(st.session_state.book):
                 if i > 0: doc.add_page_break()
@@ -224,14 +226,14 @@ elif aba == "Exportar":
                 p = doc.add_paragraph()
                 run = p.add_run(processar_transposicao(m['conteudo'], st.session_state.tom_ajuste))
                 run.font.name = 'Courier New'
-                run.font.size = Pt(10)
+                run.font.size = Pt(st.session_state.tamanho_fonte) # AQUI APLICA O TAMANHO
             
             buf = io.BytesIO()
             doc.save(buf)
             st.download_button("📥 Baixar DOCX", buf.getvalue(), f"{nome_arq}.docx")
             
         with c3:
-            # PDF - Com quebra de página
+            # PDF
             if st.button("Gerar PDF"):
                 pdf = FPDF()
                 pdf.set_auto_page_break(auto=True, margin=15)
@@ -240,7 +242,8 @@ elif aba == "Exportar":
                     pdf.set_font("Courier", 'B', 14)
                     pdf.cell(0, 10, m['titulo'].encode('latin-1', 'replace').decode('latin-1'), ln=True, align='C')
                     pdf.ln(4)
-                    pdf.set_font("Courier", size=10)
+                    # AQUI APLICA O TAMANHO NO PDF
+                    pdf.set_font("Courier", size=st.session_state.tamanho_fonte)
                     txt_p = processar_transposicao(m['conteudo'], st.session_state.tom_ajuste)
                     pdf.multi_cell(0, 5, txt_p.encode('latin-1', 'replace').decode('latin-1'))
                 
