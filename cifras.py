@@ -5,76 +5,95 @@ from bs4 import BeautifulSoup
 from fpdf import FPDF
 import re
 
-# -----------------------------------
-# CONFIGURAÇÃO
-# -----------------------------------
+# ----------------------------------
+# CONFIG
+# ----------------------------------
 st.set_page_config(
-    page_title="Music Book Pro",
-    page_icon="🎸",
-    layout="wide"
+page_title="Music Book Pro",
+page_icon="🎸",
+layout="wide"
 )
 
 st.markdown("""
 <style>
-textarea, pre, .cifra-renderizada{
-    font-family:'Courier New', monospace !important;
-    white-space:pre !important;
-    word-wrap:normal !important;
+
+textarea, pre{
+font-family:'Courier New', monospace !important;
+white-space:pre !important;
+line-height:1 !important;
 }
 
 .stButton > button{
-    width:100%;
-    border-radius:5px;
+width:100%;
+border-radius:6px;
 }
 
 .page-container{
-    background:#0e1117;
-    padding:30px;
-    border-radius:10px;
-    border:1px solid #333;
-    color:white;
-    line-height:1.2;
-    margin-bottom:20px;
+background:#0e1117;
+padding:20px;
+border-radius:10px;
+border:1px solid #333;
+margin-bottom:15px;
+color:white;
 }
+
+.cifra-renderizada{
+font-family:'Courier New', monospace !important;
+font-size:inherit !important;
+white-space:pre !important;
+line-height:1 !important;
+margin:0 !important;
+padding:0 !important;
+display:block;
+}
+
+div[data-testid="stMarkdownContainer"] p{
+margin-top:0 !important;
+margin-bottom:0 !important;
+}
+
 </style>
-""", unsafe_allow_html=True)
+""",unsafe_allow_html=True)
 
-# -----------------------------------
-# INICIALIZAÇÃO (CORRIGIDO)
-# -----------------------------------
-if 'book' not in st.session_state:
-    st.session_state.book = []
 
-if 'limpador' not in st.session_state:
-    st.session_state.limpador = 0
+# ----------------------------------
+# SESSION
+# ----------------------------------
+if "book" not in st.session_state:
+    st.session_state.book=[]
 
-if 'musica_focada' not in st.session_state:
-    st.session_state.musica_focada = None
+if "limpador" not in st.session_state:
+    st.session_state.limpador=0
 
-# CORREÇÃO PRINCIPAL
-if 'temp_titulo' not in st.session_state:
-    st.session_state.temp_titulo = ""
+if "musica_focada" not in st.session_state:
+    st.session_state.musica_focada=None
 
-if 'temp_conteudo' not in st.session_state:
-    st.session_state.temp_conteudo = ""
+if "temp_titulo" not in st.session_state:
+    st.session_state.temp_titulo=""
 
-# -----------------------------------
+if "temp_conteudo" not in st.session_state:
+    st.session_state.temp_conteudo=""
+
+
+# ----------------------------------
 # TRANSPOSIÇÃO
-# -----------------------------------
-NOTAS = [
-'C','C#','D','D#','E',
-'F','F#','G','G#','A','A#','B'
+# ----------------------------------
+NOTAS=[
+"C","C#","D","D#","E",
+"F","F#","G","G#",
+"A","A#","B"
 ]
 
 def transpor_acorde(acorde,semitons):
 
     def substituir(match):
-        nota_original=match.group(1)
-        acessorio=match.group(2)
 
-        if nota_original in NOTAS:
-            idx=(NOTAS.index(nota_original)+semitons)%12
-            return NOTAS[idx]+acessorio
+        nota=match.group(1)
+        resto=match.group(2)
+
+        if nota in NOTAS:
+            i=(NOTAS.index(nota)+semitons)%12
+            return NOTAS[i]+resto
 
         return match.group(0)
 
@@ -95,12 +114,13 @@ def processar_texto(texto,semitons,colunas):
     linhas_t=[]
 
     for linha in linhas:
+
         nova=""
         pos=0
 
         for m in re.finditer(r'\S+',linha):
 
-            nova+=(
+            nova += (
                 " "*(m.start()-pos)
                 +transpor_acorde(
                     m.group(),
@@ -111,7 +131,9 @@ def processar_texto(texto,semitons,colunas):
             pos=m.start()+len(m.group())
 
         linhas_t.append(
-            nova+(" "*(len(linha)-pos))
+            nova + (
+                " "*(len(linha)-pos)
+            )
         )
 
 
@@ -121,48 +143,40 @@ def processar_texto(texto,semitons,colunas):
 
         meio=(total//2)+(total%2)
 
-        if (
-            meio<total and
-            len(
-                re.findall(
-                    r'[A-G][b#]?[a-z0-9]*',
-                    linhas_t[meio]
-                )
-            )>0
-        ):
-            meio+=1
+        col1=linhas_t[:meio]
+        col2=linhas_t[meio:]
 
-        col_esq=linhas_t[:meio]
-        col_dir=linhas_t[meio:]
-
-        larg_max=max(
-            [len(l) for l in col_esq]
-        ) if col_esq else 0
+        largura=max(
+            len(x)
+            for x in col1
+        ) if col1 else 0
 
         final=[]
 
         for i in range(
             max(
-                len(col_esq),
-                len(col_dir)
+                len(col1),
+                len(col2)
             )
         ):
 
-            e=col_esq[i] if i<len(col_esq) else ""
-            d=col_dir[i] if i<len(col_dir) else ""
+            a=col1[i] if i<len(col1) else ""
+            b=col2[i] if i<len(col2) else ""
 
             final.append(
-                f"{e.ljust(larg_max+8)}{d}"
+                a.ljust(largura+8)+b
             )
 
         return "\n".join(final)
 
+
     return "\n".join(linhas_t)
 
 
-# -----------------------------------
+
+# ----------------------------------
 # SIDEBAR
-# -----------------------------------
+# ----------------------------------
 st.sidebar.title("🎵 Music Book")
 
 aba=st.sidebar.radio(
@@ -176,67 +190,83 @@ aba=st.sidebar.radio(
 
 st.sidebar.divider()
 st.sidebar.markdown(
-"### 🛠️ Ajustes da Música Selecionada"
+"### 🎸 Ajustes da Música"
 )
 
+
+# ----------------------------------
+# CONTROLES
+# ----------------------------------
 def ajustar_fonte(delta):
+
     if st.session_state.musica_focada is not None:
-        st.session_state.book[
-            st.session_state.musica_focada
-        ]['fonte']+=delta
+
+        idx=st.session_state.musica_focada
+
+        atual=st.session_state.book[idx]["fonte"]
+
+        novo=max(
+            8,
+            min(
+                32,
+                atual+delta
+            )
+        )
+
+        st.session_state.book[idx]["fonte"]=novo
 
 
 def set_fonte(valor):
     if st.session_state.musica_focada is not None:
-        st.session_state.book[
-            st.session_state.musica_focada
-        ]['fonte']=valor
+        idx=st.session_state.musica_focada
+        st.session_state.book[idx]["fonte"]=valor
 
 
 def ajustar_tom(delta):
     if st.session_state.musica_focada is not None:
-        st.session_state.book[
-            st.session_state.musica_focada
-        ]['tom']+=delta
+        idx=st.session_state.musica_focada
+        st.session_state.book[idx]["tom"]+=delta
 
 
-def set_tom(valor):
+def set_tom(v):
     if st.session_state.musica_focada is not None:
-        st.session_state.book[
-            st.session_state.musica_focada
-        ]['tom']=valor
+        idx=st.session_state.musica_focada
+        st.session_state.book[idx]["tom"]=v
 
 
 def set_layout(modo):
     if st.session_state.musica_focada is not None:
-        st.session_state.book[
-            st.session_state.musica_focada
-        ]['cols']=modo
+        idx=st.session_state.musica_focada
+        st.session_state.book[idx]["cols"]=modo
 
 
-st.sidebar.write("Tamanho da Letra:")
-c1,c2,c3=st.sidebar.columns(3)
+# FONTE
+st.sidebar.write("Tamanho:")
 
-c1.button(
+a,b,c=st.sidebar.columns(3)
+
+a.button(
 "A-",
 on_click=ajustar_fonte,
 args=(-1,)
 )
 
-c2.button(
+b.button(
 "11",
 on_click=set_fonte,
 args=(11,)
 )
 
-c3.button(
+c.button(
 "A+",
 on_click=ajustar_fonte,
 args=(1,)
 )
 
 
+# TOM
 st.sidebar.write("Tom:")
+
 t1,t2,t3=st.sidebar.columns(3)
 
 t1.button(
@@ -258,25 +288,28 @@ args=(1,)
 )
 
 
+# LAYOUT
 st.sidebar.write("Layout:")
+
 l1,l2=st.sidebar.columns(2)
 
 l1.button(
-"📄 1 Col",
+"📄1 Col",
 on_click=set_layout,
 args=("1 Coluna",)
 )
 
 l2.button(
-"✂️ 2 Col",
+"✂️2 Col",
 on_click=set_layout,
 args=("2 Colunas",)
 )
 
 
-# -----------------------------------
+
+# ----------------------------------
 # ADICIONAR
-# -----------------------------------
+# ----------------------------------
 if aba=="Adicionar Música":
 
     st.header("🔍 Capturar Cifra")
@@ -289,59 +322,60 @@ if aba=="Adicionar Música":
     if st.button("Capturar"):
 
         try:
-            res=requests.get(
+
+            r=requests.get(
                 url,
                 headers={
-                    'User-Agent':'Mozilla/5.0'
+                "User-Agent":"Mozilla/5.0"
                 },
                 timeout=10
             )
 
-            res.encoding=res.apparent_encoding
-
             soup=BeautifulSoup(
-                res.text,
-                'html.parser'
+                r.text,
+                "html.parser"
             )
 
-            t=(
+            titulo=(
                 soup.find(
-                    'h1',
-                    class_='t1'
+                    "h1",
+                    class_="t1"
                 )
                 or
-                soup.find('h1')
+                soup.find("h1")
             ).get_text().strip()
 
-            c=soup.find(
-                'pre'
+            cifra=soup.find(
+                "pre"
             ).get_text()
 
-            st.session_state.temp_titulo=t
-            st.session_state.temp_conteudo=c
+            st.session_state.temp_titulo=titulo
+            st.session_state.temp_conteudo=cifra
 
             st.rerun()
 
         except:
             st.error(
-                "Erro ao capturar."
+                "Erro ao capturar"
             )
+
 
     st.divider()
 
     tit=st.text_input(
-        "Título:",
+        "Título",
         value=st.session_state.temp_titulo
     )
 
     cif=st.text_area(
-        "Cifra (Original):",
+        "Cifra",
         value=st.session_state.temp_conteudo,
         height=300
     )
 
+
     if st.button(
-        "✅ Adicionar ao Repertório"
+        "Adicionar ao repertório"
     ):
 
         st.session_state.book.append({
@@ -356,19 +390,20 @@ if aba=="Adicionar Música":
         st.session_state.temp_conteudo=""
         st.session_state.limpador+=1
 
-        st.success("Adicionado!")
+        st.success("Adicionado")
         st.rerun()
 
 
-# -----------------------------------
+
+# ----------------------------------
 # VISUALIZAR
-# -----------------------------------
+# ----------------------------------
 elif aba=="Visualizar Book":
 
     st.header("📖 Meu Repertório")
 
     if not st.session_state.book:
-        st.info("O book está vazio.")
+        st.info("Book vazio")
 
     else:
 
@@ -377,45 +412,56 @@ elif aba=="Visualizar Book":
         ):
 
             with st.expander(
-                f"🎸 {m['titulo']} ({m['fonte']}pt | Tom:{m['tom']})",
-                expanded=(
-                    st.session_state.musica_focada==i
-                )
+f"🎸 {m['titulo']} ({m['fonte']}pt | Tom:{m['tom']})",
+expanded=(
+st.session_state.musica_focada==i
+)
             ):
 
                 if st.session_state.musica_focada!=i:
                     st.session_state.musica_focada=i
                     st.rerun()
 
-                texto_proc=processar_texto(
-                    m['conteudo'],
-                    m['tom'],
-                    m['cols']
+
+                texto=processar_texto(
+                    m["conteudo"],
+                    m["tom"],
+                    m["cols"]
                 )
 
                 st.markdown(
-f'<div class="page-container" style="font-size:{m["fonte"]}pt;">',
+f"""
+<div class='page-container'>
+<div style='
+font-family:Courier New;
+font-size:{m["fonte"]}pt;
+line-height:1;
+'>
+""",
 unsafe_allow_html=True
                 )
 
                 st.markdown(
-                    f"### {m['titulo']}"
+f"### {m['titulo']}"
                 )
 
                 bloco=""
 
-                for linha in texto_proc.split("\n"):
+                for linha in texto.split("\n"):
 
-                    l_html=linha.replace(
+                    if linha.strip()=="":
+                        linha=" "
+
+                    html=linha.replace(
                         " ",
                         "&nbsp;"
                     )
 
-                    bloco+=f'''
-<div class="cifra-renderizada">
-{l_html if l_html else "&nbsp;"}
+                    bloco+=f"""
+<div class='cifra-renderizada'>
+{html}
 </div>
-'''
+"""
 
                 st.markdown(
                     bloco,
@@ -423,29 +469,37 @@ unsafe_allow_html=True
                 )
 
                 st.markdown(
-                    "</div>",
-                    unsafe_allow_html=True
+"""
+</div>
+</div>
+""",
+unsafe_allow_html=True
                 )
 
                 if st.button(
-                    "🗑️ Excluir Música",
-                    key=f"del_{i}"
+                    "🗑️Excluir",
+                    key=f"del{i}"
                 ):
                     st.session_state.book.pop(i)
                     st.session_state.musica_focada=None
                     st.rerun()
 
 
-# -----------------------------------
+
+# ----------------------------------
 # EXPORTAR
-# -----------------------------------
+# ----------------------------------
 elif aba=="Exportar":
 
-    st.header("📂 Exportar Livro")
+    st.header(
+        "📂 Exportar Livro"
+    )
 
     if st.session_state.book:
 
-        if st.button("Gerar PDF"):
+        if st.button(
+            "Gerar PDF"
+        ):
 
             pdf=FPDF()
 
@@ -462,45 +516,36 @@ elif aba=="Exportar":
                 pdf.cell(
                     0,
                     10,
-                    m['titulo'].encode(
-                        'latin-1',
-                        'replace'
-                    ).decode(
-                        'latin-1'
-                    ),
+                    m["titulo"],
                     ln=True
                 )
 
                 pdf.set_font(
                     "Courier",
-                    size=m['fonte']
+                    size=m["fonte"]
                 )
 
-                txt=processar_texto(
-                    m['conteudo'],
-                    m['tom'],
-                    m['cols']
+                texto=processar_texto(
+                    m["conteudo"],
+                    m["tom"],
+                    m["cols"]
                 )
 
                 pdf.multi_cell(
                     0,
-                    5,
-                    txt.encode(
-                        'latin-1',
-                        'replace'
-                    ).decode(
-                        'latin-1'
-                    )
+                    4,
+                    texto
                 )
 
-            # CORREÇÃO PDF
-            pdf_bytes=bytes(
-                pdf.output(dest='S')
+            arquivo=bytes(
+                pdf.output(
+                    dest="S"
+                )
             )
 
             st.download_button(
                 "📥 Baixar PDF",
-                data=pdf_bytes,
+                data=arquivo,
                 file_name="MeuRepertorio.pdf",
                 mime="application/pdf"
             )
