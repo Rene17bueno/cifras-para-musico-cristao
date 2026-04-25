@@ -51,10 +51,10 @@ if 'limpador' not in st.session_state: st.session_state.limpador = 0
 if 'temp_titulo' not in st.session_state: st.session_state.temp_titulo = ""
 if 'temp_conteudo' not in st.session_state: st.session_state.temp_conteudo = ""
 if 'tom_ajuste' not in st.session_state: st.session_state.tom_ajuste = 0
-if 'fonte_atual_edicao' not in st.session_state: st.session_state.fonte_atual_edicao = 11
+if 'fonte_global' not in st.session_state: st.session_state.fonte_global = 11
 if 'modo_colunas' not in st.session_state: st.session_state.modo_colunas = "1 Coluna"
 
-# --- LÓGICA DE TRANSPOSIÇÃO ---
+# --- LÓGICA DE TRANSPOSIÇÃO E PROCESSAMENTO ---
 NOTAS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
 def transpor_acorde(acorde, semitons):
@@ -69,8 +69,6 @@ def transpor_acorde(acorde, semitons):
 
 def processar_texto(texto, semitons, colunas):
     if not texto: return ""
-    
-    # Primeiro: Transposição
     linhas = texto.split('\n')
     linhas_transpostas = []
     for linha in linhas:
@@ -81,7 +79,6 @@ def processar_texto(texto, semitons, colunas):
             pos = m.start() + len(m.group())
         linhas_transpostas.append(nova_linha + (" " * (len(linha) - pos)))
 
-    # Segundo: Divisão em Colunas (se ativo)
     if colunas == "2 Colunas":
         meio = (len(linhas_transpostas) // 2) + (len(linhas_transpostas) % 2)
         col_esq = linhas_transpostas[:meio]
@@ -93,7 +90,6 @@ def processar_texto(texto, semitons, colunas):
             d = col_dir[i] if i < len(col_dir) else ""
             final.append(f"{e.ljust(larg_max + 8)}{d}")
         return "\n".join(final)
-    
     return "\n".join(linhas_transpostas)
 
 def buscar_cifra(url):
@@ -112,22 +108,33 @@ st.sidebar.title("🎵 Music Book")
 aba = st.sidebar.radio("Navegação", ["Adicionar Música", "Visualizar Book", "Exportar"])
 
 st.sidebar.divider()
-st.sidebar.markdown("### 🛠️ Controles de Exibição")
+st.sidebar.markdown("### 🛠️ Controles de Cifra")
 
-# Botões de Coluna na Sidebar
-st.sidebar.write("Layout da Página:")
-c_col1, c_col2 = st.sidebar.columns(2)
-if c_col1.button("📄 1 Col"): st.session_state.modo_colunas = "1 Coluna"
-if c_col2.button("✂️ 2 Col"): st.session_state.modo_colunas = "2 Colunas"
-st.sidebar.caption(f"Ativado: {st.session_state.modo_colunas}")
+# 1. Tamanho da Letra
+st.sidebar.write("Tamanho da Letra:")
+c_f1, c_f2, c_f3 = st.sidebar.columns([1, 1, 1])
+if c_f1.button("A-"): st.session_state.fonte_global -= 1
+if c_f2.button("11"): st.session_state.fonte_global = 11
+if c_f3.button("A+"): st.session_state.fonte_global += 1
+st.sidebar.caption(f"Atual: **{st.session_state.fonte_global}pt**")
 
-# Botões de Tom na Sidebar
-st.sidebar.write("Transposição (Tom):")
-c_tom1, c_tom2, c_tom3 = st.sidebar.columns(3)
-if c_tom1.button("♭"): st.session_state.tom_ajuste -= 1
-if c_tom2.button("0"): st.session_state.tom_ajuste = 0
-if c_tom3.button("♯"): st.session_state.tom_ajuste += 1
-st.sidebar.caption(f"Ajuste: {st.session_state.tom_ajuste} semitons")
+# 2. Transposição (Tom)
+st.sidebar.write("Ajuste de Tom:")
+c_t1, c_t2, c_t3 = st.sidebar.columns(3)
+if c_t1.button("♭"): st.session_state.tom_ajuste -= 1
+if c_t2.button("0 "): st.session_state.tom_ajuste = 0
+if c_t3.button("♯"): st.session_state.tom_ajuste += 1
+st.sidebar.caption(f"Semitons: {st.session_state.tom_ajuste}")
+
+# 3. Colunas
+st.sidebar.write("Colunas:")
+c_c1, c_c2 = st.sidebar.columns(2)
+if c_c1.button("📄 1"): st.session_state.modo_colunas = "1 Coluna"
+if c_c2.button("✂️ 2"): st.session_state.modo_colunas = "2 Colunas"
+st.sidebar.caption(f"Layout: {st.session_state.modo_colunas}")
+
+# Injeta CSS Global para respeitar a fonte da Sidebar
+st.markdown(f"<style>textarea, .cifra-renderizada, .page-container {{ font-size: {st.session_state.fonte_global}pt !important; }}</style>", unsafe_allow_html=True)
 
 # ====================== ADICIONAR MÚSICA ======================
 if aba == "Adicionar Música":
@@ -139,47 +146,39 @@ if aba == "Adicionar Música":
         st.rerun()
 
     st.divider()
-    
-    # Controle de fonte local
-    st.subheader("Personalizar Música")
-    cf1, cf2, cf3 = st.columns([1,1,4])
-    if cf1.button("A-"): st.session_state.fonte_atual_edicao -= 1
-    if cf3.button("A+"): st.session_state.fonte_atual_edicao += 1
-    
-    st.markdown(f"<style>textarea {{ font-size: {st.session_state.fonte_atual_edicao}pt !important; }}</style>", unsafe_allow_html=True)
-
     tit = st.text_input("Título:", value=st.session_state.temp_titulo)
-    # A área de edição mostra o texto processado (tom + colunas)
     conteudo_view = processar_texto(st.session_state.temp_conteudo, st.session_state.tom_ajuste, st.session_state.modo_colunas)
-    cif = st.text_area("Cifra (Editável):", value=conteudo_view, height=400)
+    cif = st.text_area("Cifra (Editável):", value=conteudo_view, height=450)
     
-    if st.button("✅ Salvar no Book"):
+    if st.button("✅ Salvar Música no Book"):
+        # Salva o conteúdo final e o tamanho que estava na sidebar naquele momento
         st.session_state.book.append({
             "titulo": tit, 
-            "conteudo": cif, # Salva o conteúdo como está na tela
-            "tamanho_fonte": st.session_state.fonte_atual_edicao
+            "conteudo": cif, 
+            "tamanho_fonte": st.session_state.fonte_global
         })
-        st.session_state.temp_titulo = ""; st.session_state.temp_conteudo = ""; st.session_state.limpador += 1
-        st.success("Música adicionada!")
+        st.success("Salvo com sucesso!")
         time.sleep(0.5)
+        st.session_state.temp_titulo = ""; st.session_state.temp_conteudo = ""; st.session_state.limpador += 1
         st.rerun()
 
 # ====================== VISUALIZAR BOOK ======================
 elif aba == "Visualizar Book":
-    st.header("📖 Meu Repertório")
+    st.header("📖 Visualização do Repertório")
     if not st.session_state.book:
-        st.info("O book está vazio.")
+        st.info("Nenhuma música no book.")
     else:
+        # Linhas por página baseada na fonte global da sidebar
+        linhas_por_pagina = int(720 / (st.session_state.fonte_global * 1.3))
+        
         for i, m in enumerate(st.session_state.book):
-            f_size = m.get("tamanho_fonte", 11)
-            linhas_por_pagina = int(720 / (f_size * 1.3))
-            
             with st.expander(f"🎸 {m['titulo']}", expanded=True):
-                # Aqui o segredo: aplicamos o tom e a coluna sobre o que foi salvo
-                texto_exibir = processar_texto(m['conteudo'], st.session_state.tom_ajuste, st.session_state.modo_colunas)
-                linhas = texto_exibir.split('\n')
+                # O texto exibido reage aos botões de Tom e Coluna na Sidebar
+                texto_final = processar_texto(m['conteudo'], st.session_state.tom_ajuste, st.session_state.modo_colunas)
+                linhas = texto_final.split('\n')
                 
-                st.markdown(f'<div class="page-container" style="font-size: {f_size}pt;">', unsafe_allow_html=True)
+                st.markdown('<div class="page-container">', unsafe_allow_html=True)
+                st.markdown(f'<div style="font-size: 1.4em; font-weight: bold; margin-bottom: 15px;">{m["titulo"]}</div>', unsafe_allow_html=True)
                 
                 bloco = ""
                 for idx, linha in enumerate(linhas):
@@ -197,11 +196,13 @@ elif aba == "Visualizar Book":
 
 # ====================== EXPORTAR ======================
 elif aba == "Exportar":
-    st.header("📂 Exportar")
+    st.header("📂 Exportar Livro")
     if not st.session_state.book:
         st.warning("Adicione músicas primeiro.")
     else:
-        nome_arq = st.text_input("Nome do arquivo:", "Meu_Livro")
+        nome_arq = st.text_input("Nome do arquivo:", "Livro_de_Cifras")
+        st.info(f"O arquivo será gerado com o tamanho **{st.session_state.fonte_global}pt** e layout de **{st.session_state.modo_colunas}**.")
+        
         c1, c2 = st.columns(2)
         with c1:
             doc = Document()
@@ -211,16 +212,16 @@ elif aba == "Exportar":
                 txt = processar_texto(m['conteudo'], st.session_state.tom_ajuste, st.session_state.modo_colunas)
                 run = doc.add_paragraph().add_run(txt)
                 run.font.name = 'Courier New'
-                run.font.size = Pt(m.get("tamanho_fonte", 11))
+                run.font.size = Pt(st.session_state.fonte_global)
             buf = io.BytesIO(); doc.save(buf)
-            st.download_button("📥 Word", buf.getvalue(), f"{nome_arq}.docx")
+            st.download_button("📥 Baixar Word", buf.getvalue(), f"{nome_arq}.docx")
         with c2:
             if st.button("Gerar PDF"):
                 pdf = FPDF()
                 for m in st.session_state.book:
                     pdf.add_page()
                     pdf.set_font("Courier", 'B', 14); pdf.cell(0, 10, m['titulo'].encode('latin-1', 'replace').decode('latin-1'), ln=True)
-                    pdf.set_font("Courier", size=m.get("tamanho_fonte", 11))
+                    pdf.set_font("Courier", size=st.session_state.fonte_global)
                     txt = processar_texto(m['conteudo'], st.session_state.tom_ajuste, st.session_state.modo_colunas)
                     pdf.multi_cell(0, 5, txt.encode('latin-1', 'replace').decode('latin-1'))
-                st.download_button("📥 PDF", pdf.output(dest='S'), f"{nome_arq}.pdf")
+                st.download_button("📥 Baixar PDF", pdf.output(dest='S'), f"{nome_arq}.pdf")
